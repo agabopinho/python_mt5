@@ -96,7 +96,6 @@ class PlotData:
     def slice_and_plot(self,
                        ticks: pd.DataFrame,
                        seconds: int,
-                       slice_price: float,
                        limit_samples: int = None):
         count = 1
         range_index = 0
@@ -117,7 +116,8 @@ class PlotData:
             if range_index == 0:
                 range_index = unixtime // seconds
             elif unixtime // seconds != range_index:
-                logging.info(f'Slice and plot, {nameof(count)}: {count}, date: {range_data[0][0]}')
+                logging.info(
+                    f'Slice and plot, {nameof(count)}: {count}, date: {range_data[0][0]}')
 
                 data_frame = pd.DataFrame(
                     range_data, columns=['date', 'bid', 'ask'])
@@ -126,13 +126,13 @@ class PlotData:
                     max = data_frame['ask'].max()
                     min = data_frame['bid'].min()
 
-                    u_times = math.ceil((odd_ask - max) / slice_price) * -1
-                    d_times = math.floor((odd_bid - min) / slice_price)
+                    u_diff = max - odd_ask
+                    d_diff = odd_bid - min
 
-                    u_times = u_times if u_times > 0 else 0
-                    d_times = d_times if d_times > 0 else 0
+                    u_diff = u_diff if u_diff > 0 else 0
+                    d_diff = d_diff if d_diff > 0 else 0
 
-                    label = f'u;{u_times};d;{d_times}'
+                    label = f'u;{u_diff};d;{d_diff}'
 
                     self.append_label(odd_fig, label)
 
@@ -150,17 +150,15 @@ class PlotData:
             range_data.append([index, row['bid'], row['ask']])
 
     def __plot(self, ticks: pd.DataFrame) -> str:
-        slice_name = ticks.iloc[0]['date'].strftime('%Y%m%d%H%M%S')
+        slice_name = ticks.iloc[0]['date'].strftime('%Y-%m-%d_%H_%M_%S')
+        csv_name = f'{os.path.join(self.data_dir, slice_name)}.csv'
+        fig_name = f'{os.path.join(self.image_dir, slice_name)}.png'
 
-        ticks.to_csv(
-            f'{os.path.join(self.data_dir, slice_name)}.csv', sep='\t')
+        ticks.to_csv(csv_name, sep='\t', index=False)
 
         plt.plot(ticks['date'], ticks['ask'], 'r-', label='ask')
         plt.plot(ticks['date'], ticks['bid'], 'b-', label='bid')
-
         plt.axis('off')
-
-        fig_name = f'{os.path.join(self.image_dir, slice_name)}.png'
         plt.savefig(fig_name, format='png')
         plt.clf()
 
@@ -169,8 +167,8 @@ class PlotData:
     def append_label(self, fig_name: str, label: str):
         file = os.path.join(self.data_dir, 'label') + '.csv'
 
-        with open(file, 'w') as fd:
-            fd.write(f'{fig_name}\t{label}' + '\n')
+        with open(file, 'a') as fd:
+            fd.write(f'{os.path.basename(fig_name)}\t{label}' + '\n')
 
 
 def main():
@@ -189,15 +187,14 @@ def main():
 
     logging.info('Loading data...')
     ticks_data = TicksData()
-    ticks = ticks_data.load(file, time(9), time(18))
+    ticks = ticks_data.load(file, time(9, 10), time(18))
 
     logging.info('Init dir...')
     plot_data = PlotData(image_dir, data_dir)
     plot_data.init_dirs()
 
     logging.info('Slice and plot...')
-    plot_data.slice_and_plot(
-        ticks, seconds=30, slice_price=100, limit_samples=None)
+    plot_data.slice_and_plot(ticks, seconds=60, limit_samples=None)
 
     logging.info('Done!')
 

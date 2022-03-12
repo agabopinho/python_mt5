@@ -1,6 +1,8 @@
 import logging
+import math
 import os
 import shutil
+import time as tm
 from datetime import datetime, time
 
 import matplotlib.pyplot as plt
@@ -91,22 +93,54 @@ class PlotData:
         if not os.path.exists(self.data_dir):
             os.mkdir(self.data_dir)
 
-    def slice_and_plot(self, ticks: pd.DataFrame, range_minutes: int, limit_samples: int = None):
+    def slice_and_plot(self,
+                       ticks: pd.DataFrame,
+                       seconds: int,
+                       slice_price: float,
+                       limit_samples: int = None):
         count = 1
         range_index = 0
         range_data = []
 
-        logging.info(
-            f'Slice and plot, info: data_len: {len(ticks)}, {nameof(range_minutes)}: {range_minutes}, {nameof(limit_samples)}: {limit_samples}')
+        logging.info('Slice and plot, info:'.format(
+            'len', len(ticks),
+            {nameof(seconds)}, seconds,
+            nameof(limit_samples), limit_samples))
+
+        odd_fig = None
+        odd_ask = None
+        odd_bid = None
 
         for index, row in ticks.iterrows():
-            index_time = index.time()
+            unixtime = tm.mktime(index.timetuple())
 
-            if index_time.minute // range_minutes != range_index:
-                logging.info(f'Slice and plot, range index: {range_index}')
+            if range_index == 0:
+                range_index = unixtime // seconds
+            elif unixtime // seconds != range_index:
+                logging.info(f'Slice and plot, {nameof(count)}: {count}, date: {range_data[0][0]}')
 
-                range_index = index_time.minute // range_minutes
-                self.__plot_range(range_data)
+                data_frame = pd.DataFrame(
+                    range_data, columns=['date', 'bid', 'ask'])
+
+                if not odd_fig is None:
+                    max = data_frame['ask'].max()
+                    min = data_frame['bid'].min()
+
+                    u_times = math.ceil((odd_ask - max) / slice_price) * -1
+                    d_times = math.floor((odd_bid - min) / slice_price)
+
+                    u_times = u_times if u_times > 0 else 0
+                    d_times = d_times if d_times > 0 else 0
+
+                    label = f'u;{u_times};d;{d_times}'
+
+                    self.append_label(odd_fig, label)
+
+                odd_fig = self.__plot(data_frame)
+                odd_ask = data_frame.iloc[-1]['ask']
+                odd_bid = data_frame.iloc[-1]['bid']
+
+                range_index = unixtime // seconds
                 range_data = []
                 count = count + 1
 
@@ -115,14 +149,7 @@ class PlotData:
 
             range_data.append([index, row['bid'], row['ask']])
 
-        if len(range_data) > 0:
-            self.__plot_range(range_data)
-
-    def __plot_range(self, range: list):
-        self.__plot(pd.DataFrame(range, columns=[
-            'date', 'bid', 'ask']))
-
-    def __plot(self, ticks: pd.DataFrame):
+    def __plot(self, ticks: pd.DataFrame) -> str:
         slice_name = ticks.iloc[0]['date'].strftime('%Y%m%d%H%M%S')
 
         ticks.to_csv(
@@ -133,9 +160,17 @@ class PlotData:
 
         plt.axis('off')
 
-        plt.savefig(
-            f'{os.path.join(self.image_dir, slice_name)}.png', format='png')
+        fig_name = f'{os.path.join(self.image_dir, slice_name)}.png'
+        plt.savefig(fig_name, format='png')
         plt.clf()
+
+        return fig_name
+
+    def append_label(self, fig_name: str, label: str):
+        file = os.path.join(self.data_dir, 'label') + '.csv'
+
+        with open(file, 'w') as fd:
+            fd.write(f'{fig_name}\t{label}' + '\n')
 
 
 def main():
@@ -161,7 +196,8 @@ def main():
     plot_data.init_dirs()
 
     logging.info('Slice and plot...')
-    plot_data.slice_and_plot(ticks, range_minutes=5, limit_samples=10)
+    plot_data.slice_and_plot(
+        ticks, seconds=30, slice_price=100, limit_samples=None)
 
     logging.info('Done!')
 

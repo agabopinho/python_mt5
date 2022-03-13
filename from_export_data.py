@@ -78,9 +78,10 @@ class TicksData:
 
 
 class PlotData:
-    def __init__(self, image_dir: str, data_dir: str):
+    def __init__(self, image_dir: str, data_dir: str, label_file: str):
         self.image_dir = image_dir
         self.data_dir = data_dir
+        self.label_file = label_file
 
     def init_dirs(self):
         if os.path.exists(self.image_dir):
@@ -89,13 +90,14 @@ class PlotData:
             shutil.rmtree(self.data_dir)
 
         if not os.path.exists(self.image_dir):
-            os.mkdir(self.image_dir)
+            os.makedirs(self.image_dir, )
         if not os.path.exists(self.data_dir):
-            os.mkdir(self.data_dir)
+            os.makedirs(self.data_dir)
 
     def slice_and_plot(self,
                        ticks: pd.DataFrame,
                        seconds: int,
+                       price_step: float = None,
                        limit_samples: int = None):
         count = 1
         range_index = 0
@@ -132,7 +134,11 @@ class PlotData:
                     u_diff = u_diff if u_diff > 0 else 0
                     d_diff = d_diff if d_diff > 0 else 0
 
-                    label = f'u;{u_diff};d;{d_diff}'
+                    if not price_step is None:
+                        u_diff = math.floor(u_diff / price_step) * price_step
+                        d_diff = math.floor(d_diff / price_step) * price_step
+
+                    label = f'{u_diff}-{d_diff}'
 
                     self.append_label(odd_fig, label)
 
@@ -165,10 +171,25 @@ class PlotData:
         return fig_name
 
     def append_label(self, fig_name: str, label: str):
-        file = os.path.join(self.data_dir, 'label') + '.csv'
-
-        with open(file, 'a') as fd:
+        with open(self.label_file, 'a') as fd:
             fd.write(f'{os.path.basename(fig_name)}\t{label}' + '\n')
+
+
+class FormatDataSet:
+    def make(self, label_file: str, image_dir: str, output_dir):
+        df_labels = pd.read_csv(label_file, sep='\t', names=['path', 'label'])
+
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+
+        for _, row in df_labels.iterrows():
+            file_path = os.path.join(image_dir, row['path'])
+            output_path = os.path.join(output_dir, row['label'])
+
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
+
+            shutil.copy(file_path, output_path)
 
 
 def main():
@@ -181,20 +202,28 @@ def main():
         ]
     )
 
-    file = './export_data/WIN@N_202201030855_202203091831_FLAT.csv'
-    image_dir = './export_data/images/'
-    data_dir = './export_data/data/'
+    data_file = './output_data/WIN@N_202201030855_202203091831_FLAT.csv'
+    image_dir = './output_data/images/'
+    data_dir = './output_data/data/'
+    output_ds_dir = './output_data/data_set/'
+    label_file = os.path.join(data_dir, 'label.csv')
 
     logging.info('Loading data...')
     ticks_data = TicksData()
-    ticks = ticks_data.load(file, time(9, 10), time(18))
+    ticks = ticks_data.load(data_file, time(9, 10), time(18))
 
     logging.info('Init dir...')
-    plot_data = PlotData(image_dir, data_dir)
+    plot_data = PlotData(image_dir, data_dir, label_file)
     plot_data.init_dirs()
 
     logging.info('Slice and plot...')
-    plot_data.slice_and_plot(ticks, seconds=60, limit_samples=None)
+    plot_data.slice_and_plot(
+        ticks, seconds=20, price_step=50, limit_samples=None)
+
+    logging.info('Format data set...')
+    format_ds = FormatDataSet()
+    format_ds.make(label_file,
+                   image_dir, output_ds_dir)
 
     logging.info('Done!')
 

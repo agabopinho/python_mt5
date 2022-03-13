@@ -202,18 +202,18 @@ def main():
         ]
     )
 
-    data_file = './output_data/WIN@N_202201030855_202203091831_FLAT.csv'
-    image_dir = './output_data/images/'
-    data_dir = './output_data/data/'
-    output_ds_dir = './output_data/data_set/'
-    label_file = os.path.join(data_dir, 'label.csv')
+    data_file = './source_data/WIN@N_202201030855_202203091831.csv'
+    out_image_dir = './output_y/images/'
+    out_data_dir = './output_y/data/'
+    out_ds_dir = './output_y/data_set/'
+    out_label_file = os.path.join(out_data_dir, 'label.csv')
 
     logging.info('Loading data...')
     ticks_data = TicksData()
     ticks = ticks_data.load(data_file, time(9, 10), time(18))
 
     logging.info('Init dir...')
-    plot_data = PlotData(image_dir, data_dir, label_file)
+    plot_data = PlotData(out_image_dir, out_data_dir, out_label_file)
     plot_data.init_dirs()
 
     logging.info('Slice and plot...')
@@ -222,8 +222,8 @@ def main():
 
     logging.info('Format data set...')
     format_ds = FormatDataSet()
-    format_ds.make(label_file,
-                   image_dir, output_ds_dir)
+    format_ds.make(out_label_file,
+                   out_image_dir, out_ds_dir)
 
     logging.info('Done!')
 

@@ -28,34 +28,36 @@ class TicksData:
             '<FLAGS>': 'flags',
         }, inplace=True)
 
-        # parse date and time
+        logging.info('Parse date and time...')
         ticks['date'] = pd.to_datetime(
             ticks['date'], format='%Y.%m.%d')
         ticks['time'] = pd.to_datetime(
             ticks['time'], format='%H:%M:%S.%f') - datetime(1900, 1, 1)
         ticks['date'] = ticks['date'] + ticks['time']
 
+        logging.info('Drop column time...')
         ticks.drop(columns=['time'], inplace=True)
 
-        ticks = pd.DataFrame({
-            'bid': ticks['bid'].to_list(),
-            'ask': ticks['ask'].to_list(),
-            'last': ticks['last'].to_list(),
-            'volume': ticks['volume'].to_list(),
-            'flags': ticks['flags'].to_list()
-        }, index=ticks['date'])
+        logging.info('Create date index...')
+        ticks = ticks[['date', 'bid', 'ask', 'last', 'volume', 'flags']]
+        ticks.set_index('date', inplace=True)
 
+        logging.info('Filter junk data...')
         ticks = ticks[np.logical_or(
             ticks['ask'] > 0, ticks['bid'] > 0)]
 
+        logging.info('Fill bid and ask prices...')
         self.__format_price(ticks)
 
+        logging.info('Filter junk data...')
         ticks = ticks[np.logical_and(
             ticks['ask'] > 0,
             ticks['bid'] > 0)]
 
+        logging.info('Filter valid trade prices...')
         ticks = ticks[ticks['ask'] > ticks['bid']]
 
+        logging.info('Filter intraday range...')
         ticks = ticks.between_time(intraday_start,
                                    intraday_end, inclusive='both')
 
@@ -140,7 +142,7 @@ class PlotData:
 
                     label = f'{u_diff}-{d_diff}'
 
-                    self.append_label(odd_fig, label)
+                    self.__append_label(odd_fig, label)
 
                 odd_fig = self.__plot(data_frame)
                 odd_ask = data_frame.iloc[-1]['ask']
@@ -170,7 +172,7 @@ class PlotData:
 
         return fig_name
 
-    def append_label(self, fig_name: str, label: str):
+    def __append_label(self, fig_name: str, label: str):
         with open(self.label_file, 'a') as fd:
             fd.write(f'{os.path.basename(fig_name)}\t{label}' + '\n')
 
@@ -206,6 +208,12 @@ def main():
     out_image_dir = './output_y/images/'
     out_data_dir = './output_y/data/'
     out_ds_dir = './output_y/data_set/'
+
+    # data_file = './source_data/WIN@N_202201030855_202203091831_FLAT.csv'
+    # out_image_dir = './output_flat/images/'
+    # out_data_dir = './output_flat/data/'
+    # out_ds_dir = './output_flat/data_set/'
+
     out_label_file = os.path.join(out_data_dir, 'label.csv')
 
     logging.info('Loading data...')

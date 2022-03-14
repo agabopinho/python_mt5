@@ -4,6 +4,7 @@ import os
 import shutil
 import time as tm
 from datetime import datetime, time
+from xmlrpc.client import boolean
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -80,10 +81,11 @@ class TicksData:
 
 
 class PlotData:
-    def __init__(self, image_dir: str, data_dir: str, label_file: str):
+    def __init__(self, image_dir: str, data_dir: str, label_file: str, debug_csv: boolean = False):
         self.image_dir = image_dir
         self.data_dir = data_dir
         self.label_file = label_file
+        self.debug_csv = debug_csv
 
     def init_dirs(self):
         if os.path.exists(self.image_dir):
@@ -139,7 +141,12 @@ class PlotData:
                         u_diff = math.floor(u_diff / price_step) * price_step
                         d_diff = math.floor(d_diff / price_step) * price_step
 
-                    label = f'{u_diff}-{d_diff}'
+                    if u_diff == d_diff:
+                        label = f'i{u_diff}'
+                    elif u_diff > d_diff:
+                        label = f'u{u_diff}'
+                    else:
+                        label = f'd{d_diff}'
 
                     if odd_date.day == index.day:
                         self.__append_label(odd_fig, label)
@@ -165,7 +172,8 @@ class PlotData:
         csv_name = f'{os.path.join(self.data_dir, slice_name)}.csv'
         fig_name = f'{os.path.join(self.image_dir, slice_name)}.png'
 
-        ticks.to_csv(csv_name, sep='\t', index=False)
+        if self.debug_csv:
+            ticks.to_csv(csv_name, sep='\t', index=False)
 
         plt.plot(ticks['date'], ticks['ask'], 'r-', label='ask')
         plt.plot(ticks['date'], ticks['bid'], 'b-', label='bid')
@@ -207,21 +215,21 @@ def main():
         ]
     )
 
-    # data_file = './source_data/WIN@N_202201030855_202203091831.csv'
+    # source_file = './source_data/WIN@N_202201030855_202203091831.csv'
     # out_image_dir = './output_y/images/'
     # out_data_dir = './output_y/data/'
     # out_ds_dir = './output_y/data_set/'
 
-    data_file = './source_data/WIN@N_202201030855_202203091831_FLAT.csv'
-    out_image_dir = './output__flat_m1/images/'
-    out_data_dir = './output__flat_m1/data/'
-    out_ds_dir = './output__flat_m1/data_set/'
+    source_file = './source_data/WIN@N_202201030855_202203091831_FLAT.csv'
+    out_image_dir = './output_flat_s30/images/'
+    out_data_dir = './output_flat_s30/data/'
+    out_ds_dir = './output_flat_s30/data_set/'
 
     out_label_file = os.path.join(out_data_dir, 'label.csv')
 
     logging.info('Loading data...')
     ticks_data = TicksData()
-    ticks = ticks_data.load(data_file, time(9, 10), time(18))
+    ticks = ticks_data.load(source_file, time(9, 10), time(18))
 
     logging.info('Init dir...')
     plot_data = PlotData(out_image_dir, out_data_dir, out_label_file)
@@ -229,7 +237,7 @@ def main():
 
     logging.info('Slice and plot...')
     plot_data.slice_and_plot(
-        ticks, seconds=60, price_step=50, limit_samples=None)
+        ticks, seconds=30, price_step=50, limit_samples=None)
 
     logging.info('Format data set...')
     format_ds = FormatDataSet()

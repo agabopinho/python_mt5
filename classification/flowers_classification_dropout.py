@@ -6,8 +6,8 @@ import tensorflow as tf
 import pathlib
 
 from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.models import Sequential
+from keras import layers
+from keras.models import Sequential
 
 print('Baixe e explore o conjunto de dados')
 dataset_url = "https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz"
@@ -87,9 +87,9 @@ model = Sequential([
     keras.Sequential(
         [
             layers.RandomFlip("horizontal",
-                            input_shape=(img_height,
-                                        img_width,
-                                        3)),
+                              input_shape=(img_height,
+                                           img_width,
+                                           3)),
             layers.RandomRotation(0.1),
             layers.RandomZoom(0.1),
         ]

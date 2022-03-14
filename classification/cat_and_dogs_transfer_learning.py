@@ -63,6 +63,7 @@ for image, _ in train_dataset.take(1):
         augmented_image = data_augmentation(tf.expand_dims(first_image, 0))
         plt.imshow(augmented_image[0] / 255)
         plt.axis('off')
+    plt.show()
     plt.close(fig)
 
 preprocess_input = tf.keras.applications.mobilenet_v2.preprocess_input
@@ -223,4 +224,5 @@ for i in range(9):
     plt.imshow(image_batch[i].astype("uint8"))
     plt.title(class_names[predictions[i]])
     plt.axis("off")
+plt.show()
 plt.close(fig)

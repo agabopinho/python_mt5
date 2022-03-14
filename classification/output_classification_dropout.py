@@ -6,8 +6,8 @@ import tensorflow as tf
 import pathlib
 
 from tensorflow import keras
-from tensorflow.keras import layers
-from tensorflow.keras.models import Sequential
+from keras import layers
+from keras.models import Sequential
 
 print('Criar um conjunto de dados')
 data_dir = pathlib.Path('./output_flat_s30/data_set')

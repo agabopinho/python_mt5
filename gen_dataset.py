@@ -105,12 +105,11 @@ class PlotData:
         range_index = 0
         range_data = []
 
-        logging.info('Slice and plot, info:'.format(
-            'len', len(ticks),
-            {nameof(seconds)}, seconds,
-            nameof(limit_samples), limit_samples))
+        logging.info(
+            f'Slice and plot, info: len, {len(ticks)}, {nameof(seconds)}, {seconds}, {nameof(limit_samples)}, {limit_samples}')
 
         odd_fig = None
+        odd_date = None
         odd_ask = None
         odd_bid = None
 
@@ -142,11 +141,15 @@ class PlotData:
 
                     label = f'{u_diff}-{d_diff}'
 
-                    self.__append_label(odd_fig, label)
+                    if odd_date.day == index.day:
+                        self.__append_label(odd_fig, label)
+
+                last = data_frame.iloc[-1]
 
                 odd_fig = self.__plot(data_frame)
-                odd_ask = data_frame.iloc[-1]['ask']
-                odd_bid = data_frame.iloc[-1]['bid']
+                odd_date = last["date"]
+                odd_ask = last['ask']
+                odd_bid = last['bid']
 
                 range_index = unixtime // seconds
                 range_data = []
@@ -204,15 +207,15 @@ def main():
         ]
     )
 
-    data_file = './source_data/WIN@N_202201030855_202203091831.csv'
-    out_image_dir = './output_y/images/'
-    out_data_dir = './output_y/data/'
-    out_ds_dir = './output_y/data_set/'
+    # data_file = './source_data/WIN@N_202201030855_202203091831.csv'
+    # out_image_dir = './output_y/images/'
+    # out_data_dir = './output_y/data/'
+    # out_ds_dir = './output_y/data_set/'
 
-    # data_file = './source_data/WIN@N_202201030855_202203091831_FLAT.csv'
-    # out_image_dir = './output_flat/images/'
-    # out_data_dir = './output_flat/data/'
-    # out_ds_dir = './output_flat/data_set/'
+    data_file = './source_data/WIN@N_202201030855_202203091831_FLAT.csv'
+    out_image_dir = './output__flat_m1/images/'
+    out_data_dir = './output__flat_m1/data/'
+    out_ds_dir = './output__flat_m1/data_set/'
 
     out_label_file = os.path.join(out_data_dir, 'label.csv')
 
@@ -226,7 +229,7 @@ def main():
 
     logging.info('Slice and plot...')
     plot_data.slice_and_plot(
-        ticks, seconds=20, price_step=50, limit_samples=None)
+        ticks, seconds=60, price_step=50, limit_samples=None)
 
     logging.info('Format data set...')
     format_ds = FormatDataSet()

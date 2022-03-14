@@ -10,7 +10,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.models import Sequential
 
 print('Criar um conjunto de dados')
-data_dir = pathlib.Path('./output_data/data_set')
+data_dir = pathlib.Path('./output_y/data_set')
 batch_size = 32
 img_height = 180
 img_width = 180

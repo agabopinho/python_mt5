@@ -7,7 +7,6 @@ import pathlib
 
 from tensorflow import keras
 from keras import layers
-from keras.models import Sequential
 
 print('Baixe e explore o conjunto de dados')
 dataset_url = "https://storage.googleapis.com/download.tensorflow.org/example_images/flower_photos.tgz"
@@ -83,7 +82,7 @@ image_batch, labels_batch = next(iter(normalized_ds))
 print(np.min(image_batch[0]), np.max(image_batch[0]))
 
 print('Dropout e aumento de dados')
-model = Sequential([
+model = keras.Sequential([
     keras.Sequential(
         [
             layers.RandomFlip("horizontal",

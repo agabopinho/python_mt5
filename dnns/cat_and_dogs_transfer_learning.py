@@ -33,6 +33,7 @@ for images, labels in train_dataset.take(1):
         plt.imshow(images[i].numpy().astype("uint8"))
         plt.title(class_names[labels[i]])
         plt.axis("off")
+plt.show()
 plt.close(fig)
 
 val_batches = tf.data.experimental.cardinality(validation_dataset)

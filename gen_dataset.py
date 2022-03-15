@@ -80,6 +80,14 @@ class TicksData:
         return state[0]
 
 
+class _ImageData:
+    def __init__(self, image_path: str, last_date: datetime, last_bid: float, last_ask: float):
+        self.image_path = image_path
+        self.last_date = last_date
+        self.last_bid = last_bid
+        self.last_ask = last_ask
+
+
 class PlotData:
     def __init__(self, image_dir: str, data_dir: str, label_file: str, debug_csv: boolean = False):
         self.image_dir = image_dir
@@ -110,62 +118,67 @@ class PlotData:
         logging.info(
             f'Slice and plot, info: len, {len(ticks)}, {nameof(seconds)}, {seconds}, {nameof(limit_samples)}, {limit_samples}')
 
-        odd_fig = None
-        odd_date = None
-        odd_ask = None
-        odd_bid = None
+        last_image = None
 
         for index, row in ticks.iterrows():
             unixtime = tm.mktime(index.timetuple())
 
             if range_index == 0:
                 range_index = unixtime // seconds
-            elif unixtime // seconds != range_index:
-                logging.info(
-                    f'Slice and plot, {nameof(count)}: {count}, date: {range_data[0][0]}')
 
-                data_frame = pd.DataFrame(
-                    range_data, columns=['date', 'bid', 'ask'])
+            if unixtime // seconds == range_index:
+                range_data.append([index, row['bid'], row['ask']])
+                continue
 
-                if not odd_fig is None:
-                    max = data_frame['ask'].max()
-                    min = data_frame['bid'].min()
+            logging.info(
+                f'Slice and plot, {nameof(count)}: {count}, date: {range_data[0][0]}')
 
-                    u_diff = max - odd_ask
-                    d_diff = odd_bid - min
+            current_frame = pd.DataFrame(
+                range_data, columns=['date', 'bid', 'ask'])
 
-                    u_diff = u_diff if u_diff > 0 else 0
-                    d_diff = d_diff if d_diff > 0 else 0
+            if not last_image is None:
+                self.__compute_label(
+                    last_image, price_step, index, current_frame)
 
-                    if not price_step is None:
-                        u_diff = math.floor(u_diff / price_step) * price_step
-                        d_diff = math.floor(d_diff / price_step) * price_step
+            last = current_frame.iloc[-1]
 
-                    if u_diff == d_diff:
-                        label = f'i{u_diff}'
-                    elif u_diff > d_diff:
-                        label = f'u{u_diff}'
-                    else:
-                        label = f'd{d_diff}'
+            image_path = self.__plot(current_frame)
+            last_image = _ImageData(
+                image_path, last["date"], last['bid'], last['ask'])
 
-                    if odd_date.day == index.day:
-                        self.__append_label(odd_fig, label)
+            range_index = unixtime // seconds  # new range index
+            count = count + 1
 
-                last = data_frame.iloc[-1]
+            range_data = []  # clean old data
 
-                odd_fig = self.__plot(data_frame)
-                odd_date = last["date"]
-                odd_ask = last['ask']
-                odd_bid = last['bid']
-
-                range_index = unixtime // seconds
-                range_data = []
-                count = count + 1
-
-                if not limit_samples is None and count > limit_samples:
-                    break
+            if not limit_samples is None and count > limit_samples:
+                break
 
             range_data.append([index, row['bid'], row['ask']])
+
+    def __compute_label(self, last_image: _ImageData, price_step: float, index: datetime, current_frame: pd.DataFrame):
+        max = current_frame['ask'].max()
+        min = current_frame['bid'].min()
+
+        u_diff = max - last_image.last_ask
+        d_diff = last_image.last_bid - min
+
+        u_diff = u_diff if u_diff > 0 else 0
+        d_diff = d_diff if d_diff > 0 else 0
+
+        if not price_step is None:
+            u_diff = math.floor(u_diff / price_step) * price_step
+            d_diff = math.floor(d_diff / price_step) * price_step
+
+        if u_diff < 50 and d_diff < 50:
+            label = f'idle'
+        elif u_diff > d_diff:
+            label = f'buy'
+        else:
+            label = f'sell'
+
+        if last_image.last_date.day == index.day:
+            self.__append_label(last_image.image_path, label)
 
     def __plot(self, ticks: pd.DataFrame) -> str:
         slice_name = ticks.iloc[0]['date'].strftime('%Y-%m-%d_%H_%M_%S')
@@ -215,33 +228,33 @@ def main():
         ]
     )
 
-    # source_file = './source_data/WIN@N_202201030855_202203091831.csv'
-    # out_image_dir = './output_y/images/'
-    # out_data_dir = './output_y/data/'
-    # out_ds_dir = './output_y/data_set/'
+    file = 'WIN@N_202201030855_202203091831.csv'
+    split_seconds = 60
 
-    source_file = './source_data/WIN@N_202201030855_202203091831_FLAT.csv'
-    out_image_dir = './output_flat_s30/images/'
-    out_data_dir = './output_flat_s30/data/'
-    out_ds_dir = './output_flat_s30/data_set/'
+    base_name = os.path.basename(os.path.splitext(file)[0])
 
-    out_label_file = os.path.join(out_data_dir, 'label.csv')
+    source_file = f'./source_data/{file}'
+    out_image_dir = f'./output/{base_name}_s{split_seconds}/images/'
+    out_data_dir = f'./output/{base_name}_s{split_seconds}/data/'
+    out_ds_dir = f'./output/{base_name}_s{split_seconds}/data_set/'
+
+    out_label = os.path.join(out_data_dir, 'label.csv')
 
     logging.info('Loading data...')
     ticks_data = TicksData()
     ticks = ticks_data.load(source_file, time(9, 10), time(18))
 
     logging.info('Init dir...')
-    plot_data = PlotData(out_image_dir, out_data_dir, out_label_file)
+    plot_data = PlotData(out_image_dir, out_data_dir, out_label)
     plot_data.init_dirs()
 
     logging.info('Slice and plot...')
     plot_data.slice_and_plot(
-        ticks, seconds=30, price_step=50, limit_samples=None)
+        ticks, seconds=split_seconds, price_step=50, limit_samples=None)
 
     logging.info('Format data set...')
     format_ds = FormatDataSet()
-    format_ds.make(out_label_file,
+    format_ds.make(out_label,
                    out_image_dir, out_ds_dir)
 
     logging.info('Done!')

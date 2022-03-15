@@ -138,7 +138,7 @@ class PlotData:
 
             if not last_image is None:
                 self.__compute_label(
-                    last_image, price_step, index, current_frame)
+                    last_image, index, current_frame)
 
             last = current_frame.iloc[-1]
 
@@ -156,23 +156,16 @@ class PlotData:
 
             range_data.append([index, row['bid'], row['ask']])
 
-    def __compute_label(self, last_image: _ImageData, price_step: float, index: datetime, current_frame: pd.DataFrame):
-        max = current_frame['ask'].max()
-        min = current_frame['bid'].min()
+    def __compute_label(self, last_image: _ImageData, index: datetime, current_frame: pd.DataFrame):
+        bid = current_frame.iloc[-1]['bid']
+        ask = current_frame.iloc[-1]['ask']
 
-        u_diff = max - last_image.last_ask
-        d_diff = last_image.last_bid - min
+        diff = np.mean([bid, ask]) - \
+            np.mean([last_image.last_bid, last_image.last_ask])
 
-        u_diff = u_diff if u_diff > 0 else 0
-        d_diff = d_diff if d_diff > 0 else 0
-
-        if not price_step is None:
-            u_diff = math.floor(u_diff / price_step) * price_step
-            d_diff = math.floor(d_diff / price_step) * price_step
-
-        if u_diff < 50 and d_diff < 50:
+        if diff > -100 and diff < 100:
             label = f'idle'
-        elif u_diff > d_diff:
+        elif diff >= 100:
             label = f'buy'
         else:
             label = f'sell'
@@ -228,15 +221,15 @@ def main():
         ]
     )
 
-    file = 'WIN@N_202201030855_202203091831.csv'
-    split_seconds = 60
+    file = 'WIN@N_202201030855_202203091831_VALIDATION.csv'
+    split_seconds = 600
 
     base_name = os.path.basename(os.path.splitext(file)[0])
 
     source_file = f'./source_data/{file}'
-    out_image_dir = f'./output/{base_name}_s{split_seconds}/images/'
-    out_data_dir = f'./output/{base_name}_s{split_seconds}/data/'
-    out_ds_dir = f'./output/{base_name}_s{split_seconds}/data_set/'
+    out_image_dir = f'./outputs/{base_name}_s{split_seconds}/images/'
+    out_data_dir = f'./outputs/{base_name}_s{split_seconds}/data/'
+    out_ds_dir = f'./outputs/{base_name}_s{split_seconds}/data_set/'
 
     out_label = os.path.join(out_data_dir, 'label.csv')
 

@@ -9,7 +9,8 @@ from tensorflow import keras
 from keras import layers
 
 print('Criar um conjunto de dados')
-data_dir = pathlib.Path('./outputs/WIN@N_202201030855_202203091831_s60/data_set')
+data_dir = pathlib.Path(
+    './outputs/WIN@N_202201030855_202203091831_s600/data_set')
 batch_size = 32
 img_height = 180
 img_width = 180
@@ -132,20 +133,62 @@ plt.show()
 plt.close(fig)
 
 print('Prever novos dados')
-sunflower_url = "https://storage.googleapis.com/download.tensorflow.org/example_images/592px-Red_sunflower.jpg"
-sunflower_path = tf.keras.utils.get_file('Red_sunflower', origin=sunflower_url)
-sunflower_path = 'C://Users/agabo/source/repos/mt5/outputs/WIN@N_202201030855_202203091831_VALIDATION_s60/data_set/buy/2022-02-25_09_58_00.png'
+# sunflower_url = "https://storage.googleapis.com/download.tensorflow.org/example_images/592px-Red_sunflower.jpg"
+# sunflower_path = tf.keras.utils.get_file('Red_sunflower', origin=sunflower_url)
 
-img = tf.keras.utils.load_img(
-    sunflower_path, target_size=(img_height, img_width)
-)
-img_array = tf.keras.utils.img_to_array(img)
-img_array = tf.expand_dims(img_array, 0)  # Create a batch
+dir = 'C:\\Users\\agabo\\source\\repos\\mt5\\outputs\\WIN@N_202201030855_202203091831_VALIDATION_s600\\data_set\\sell'
 
-predictions = model.predict(img_array)
-score = tf.nn.softmax(predictions[0])
+print('sell -> ')
+for sunflower_path in os.listdir(dir):
+    img = tf.keras.utils.load_img(
+        os.path.join(dir, sunflower_path), target_size=(img_height, img_width)
+    )
+    img_array = tf.keras.utils.img_to_array(img)
+    img_array = tf.expand_dims(img_array, 0)  # Create a batch
 
-print(
-    "This image most likely belongs to {} with a {:.2f} percent confidence."
-    .format(class_names[np.argmax(score)], 100 * np.max(score))
-)
+    predictions = model.predict(img_array)
+    score = tf.nn.softmax(predictions[0])
+
+    if np.argmax(score) > 0.9:
+        print(
+            "This image most likely belongs to {} with a {:.2f} percent confidence."
+            .format(class_names[np.argmax(score)], 100 * np.max(score))
+        )
+
+dir = 'C:\\Users\\agabo\\source\\repos\\mt5\\outputs\\WIN@N_202201030855_202203091831_VALIDATION_s600\\data_set\\buy'
+
+print('buy -> ')
+for sunflower_path in os.listdir(dir):
+    img = tf.keras.utils.load_img(
+        os.path.join(dir, sunflower_path), target_size=(img_height, img_width)
+    )
+    img_array = tf.keras.utils.img_to_array(img)
+    img_array = tf.expand_dims(img_array, 0)  # Create a batch
+
+    predictions = model.predict(img_array)
+    score = tf.nn.softmax(predictions[0])
+
+    if np.argmax(score) > 0.9:
+        print(
+            "This image most likely belongs to {} with a {:.2f} percent confidence."
+            .format(class_names[np.argmax(score)], 100 * np.max(score))
+        )
+
+dir = 'C:\\Users\\agabo\\source\\repos\\mt5\\outputs\\WIN@N_202201030855_202203091831_VALIDATION_s600\\data_set\\idle'
+
+print('idle -> ')
+for sunflower_path in os.listdir(dir):
+    img = tf.keras.utils.load_img(
+        os.path.join(dir, sunflower_path), target_size=(img_height, img_width)
+    )
+    img_array = tf.keras.utils.img_to_array(img)
+    img_array = tf.expand_dims(img_array, 0)  # Create a batch
+
+    predictions = model.predict(img_array)
+    score = tf.nn.softmax(predictions[0])
+
+    if np.argmax(score) > 0.9:
+        print(
+            "This image most likely belongs to {} with a {:.2f} percent confidence."
+            .format(class_names[np.argmax(score)], 100 * np.max(score))
+        )

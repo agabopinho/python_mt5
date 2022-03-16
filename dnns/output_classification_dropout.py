@@ -149,7 +149,7 @@ for sunflower_path in os.listdir(dir):
     predictions = model.predict(img_array)
     score = tf.nn.softmax(predictions[0])
 
-    if np.argmax(score) > 0.9:
+    if np.max(score) > .9:
         print(
             "This image most likely belongs to {} with a {:.2f} percent confidence."
             .format(class_names[np.argmax(score)], 100 * np.max(score))
@@ -168,7 +168,7 @@ for sunflower_path in os.listdir(dir):
     predictions = model.predict(img_array)
     score = tf.nn.softmax(predictions[0])
 
-    if np.argmax(score) > 0.9:
+    if np.max(score) > .9:
         print(
             "This image most likely belongs to {} with a {:.2f} percent confidence."
             .format(class_names[np.argmax(score)], 100 * np.max(score))
@@ -187,7 +187,7 @@ for sunflower_path in os.listdir(dir):
     predictions = model.predict(img_array)
     score = tf.nn.softmax(predictions[0])
 
-    if np.argmax(score) > 0.9:
+    if np.max(score) > .9:
         print(
             "This image most likely belongs to {} with a {:.2f} percent confidence."
             .format(class_names[np.argmax(score)], 100 * np.max(score))

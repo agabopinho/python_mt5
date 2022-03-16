@@ -5,9 +5,9 @@ import tensorflow as tf
 import pathlib
 
 train_dir = pathlib.Path(
-    './outputs/WIN@N_202201030855_202203091831_s60/data_set')
+    './outputs/WIN@N_202201030855_202203091831_s600/data_set')
 validation_dir = pathlib.Path(
-    './outputs/WIN@N_202201030855_202203091831_VALIDATION_s60/data_set')
+    './outputs/WIN@N_202201030855_202203091831_VALIDATION_s600/data_set')
 
 BATCH_SIZE = 32
 IMG_SIZE = (160, 160)
@@ -50,8 +50,8 @@ validation_dataset = validation_dataset.prefetch(buffer_size=AUTOTUNE)
 test_dataset = test_dataset.prefetch(buffer_size=AUTOTUNE)
 
 data_augmentation = tf.keras.Sequential([
-    tf.keras.layers.RandomFlip('horizontal'),
-    tf.keras.layers.RandomRotation(0.2),
+    #tf.keras.layers.RandomFlip('horizontal'),
+    #tf.keras.layers.RandomRotation(0.2),
 ])
 
 for image, _ in train_dataset.take(1):

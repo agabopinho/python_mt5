@@ -109,7 +109,7 @@ class PlotData:
     def slice_and_plot(self,
                        ticks: pd.DataFrame,
                        seconds: int,
-                       price_step: float = None,
+                       price: float = None,
                        limit_samples: int = None):
         count = 1
         range_index = 0
@@ -138,7 +138,7 @@ class PlotData:
 
             if not last_image is None:
                 self.__compute_label(
-                    last_image, index, current_frame)
+                    last_image, index, current_frame, price)
 
             last = current_frame.iloc[-1]
 
@@ -156,22 +156,26 @@ class PlotData:
 
             range_data.append([index, row['bid'], row['ask']])
 
-    def __compute_label(self, last_image: _ImageData, index: datetime, current_frame: pd.DataFrame):
+    def __compute_label(self, last_image: _ImageData, index: datetime, current_frame: pd.DataFrame, price: float):
         bid = current_frame.iloc[-1]['bid']
         ask = current_frame.iloc[-1]['ask']
 
         diff = np.mean([bid, ask]) - \
             np.mean([last_image.last_bid, last_image.last_ask])
 
-        if diff > -100 and diff < 100:
+        if diff > -price and diff < price:
             label = f'idle'
-        elif diff >= 100:
+        elif diff >= price:
             label = f'buy'
         else:
             label = f'sell'
 
         if last_image.last_date.day == index.day:
             self.__append_label(last_image.image_path, label)
+
+    def __append_label(self, fig_name: str, label: str):
+        with open(self.label_file, 'a') as fd:
+            fd.write(f'{os.path.basename(fig_name)}\t{label}' + '\n')
 
     def __plot(self, ticks: pd.DataFrame) -> str:
         slice_name = ticks.iloc[0]['date'].strftime('%Y-%m-%d_%H_%M_%S')
@@ -188,10 +192,6 @@ class PlotData:
         plt.clf()
 
         return fig_name
-
-    def __append_label(self, fig_name: str, label: str):
-        with open(self.label_file, 'a') as fd:
-            fd.write(f'{os.path.basename(fig_name)}\t{label}' + '\n')
 
 
 class FormatDataSet:
@@ -221,8 +221,9 @@ def main():
         ]
     )
 
-    file = 'WIN@N_202201030855_202203091831_VALIDATION.csv'
-    split_seconds = 600
+    file = 'WIN@N_202201030855_202203091831_VALIDATION_02.csv'
+    split_seconds = 5
+    min_price = 5
 
     base_name = os.path.basename(os.path.splitext(file)[0])
 
@@ -243,7 +244,7 @@ def main():
 
     logging.info('Slice and plot...')
     plot_data.slice_and_plot(
-        ticks, seconds=split_seconds, price_step=50, limit_samples=None)
+        ticks, seconds=split_seconds, price=min_price, limit_samples=None)
 
     logging.info('Format data set...')
     format_ds = FormatDataSet()

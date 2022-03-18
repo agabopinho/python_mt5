@@ -1,9 +1,7 @@
 import logging
-from datetime import datetime, timedelta, tzinfo
-from pprint import pformat
 import time
+from datetime import datetime, timedelta
 from typing import Tuple
-from xmlrpc.client import boolean
 
 import matplotlib.pyplot as plt
 import MetaTrader5 as mt5
@@ -11,8 +9,7 @@ import pandas as pd
 import pytz
 from pandas.plotting import register_matplotlib_converters
 
-from trading_sim import trading_sim
-
+from trading_sim import Side, TradingSim
 
 register_matplotlib_converters()
 
@@ -61,15 +58,66 @@ def add_sma(ticks: pd.DataFrame, name: str, from_column: str, window: str):
     ticks[name] = ticks[from_column].rolling(window).mean()
 
 
-def plotting_ticks(ticks: pd.DataFrame):
+def add_bollinger(ticks: pd.DataFrame, column_name: str, window: str, desviations: list[float] = [2, 2.5]):
+    sma = 'bollinger_sma'
+    std = 'bollinger_std'
+    up1 = 'bollinger1_up'
+    down1 = 'bollinger1_down'
+    up2 = 'bollinger2_up'
+    down2 = 'bollinger2_down'
+
+    ticks[sma] = ticks[column_name].rolling(window).mean()
+    ticks[std] = ticks[column_name].rolling(window).std()
+    ticks[up1] = ticks[sma] + ticks[std] * desviations[0]
+    ticks[down1] = ticks[sma] - ticks[std] * desviations[0]
+    ticks[up2] = ticks[sma] + ticks[std] * desviations[1]
+    ticks[down2] = ticks[sma] - ticks[std] * desviations[1]
+
+
+def plotting_ticks(ticks: pd.DataFrame, tradings: pd.DataFrame, plot_last: bool = False):
     logging.info('Plotting ticks')
     print(ticks)
 
-    # display ticks on the chart
     fig = plt.figure()
-    plt.plot(ticks.index, ticks['soft_sma'], 'y-', label='Soft SMA')
-    plt.plot(ticks.index, ticks['fast_sma'], 'g--', label='Fast SMA')
-    plt.plot(ticks.index, ticks['slow_sma'], 'r--', label='Slow SMA')
+    
+    if plot_last:
+        plt.plot(ticks.index, ticks['last'], 'k--', label='Last')
+        
+    plt.plot(ticks.index, ticks['soft_sma'], 'y--', label='Soft SMA')
+    plt.plot(ticks.index, ticks['fast_sma'], 'm--', label='Fast SMA')
+    plt.plot(ticks.index, ticks['slow_sma'], 'c--', label='Slow SMA')
+
+    for index, row in tradings.loc[tradings['is_open'] == False].iterrows():
+        point1 = [index, row['entry_price']]
+        point2 = [row['exit_time'], row['exit_price']]
+        x_values = [point1[0], point2[0]]
+        y_values = [point1[1], point2[1]]
+
+        if row['side'] == Side.BUY:
+            plt.plot(x_values, y_values, 'go', linestyle="--")
+        elif row['side'] == Side.SELL:
+            plt.plot(x_values, y_values, 'ro', linestyle="--")
+
+    if 'bollinger_sma' in ticks.columns:
+        plt.plot(ticks.index, ticks['bollinger_sma'], label='SMA', c='g')
+        plt.plot(ticks['bollinger1_up'], 'k--', label='Bollinger 1 Up')
+        plt.plot(ticks['bollinger1_down'], 'k--', label='Bollinger 1 Down')
+        plt.plot(ticks['bollinger2_up'], 'k--', label='Bollinger 2 Up')
+        plt.plot(ticks['bollinger2_down'], 'k--', label='Bollinger 2 Down')
+
+    plt.legend(loc='upper left')
+    plt.title(f'Info')
+
+    plt.show()
+    plt.close(fig)
+
+
+def plotting_balance(tradings: pd.DataFrame):
+    logging.info('Plotting balance')
+    print(tradings)
+
+    fig = plt.figure()
+    plt.plot(tradings.index, tradings['balance'], 'y-', label='Balance')
 
     plt.legend(loc='upper left')
     plt.title(f'Info')
@@ -88,12 +136,14 @@ def main():
         ]
     )
 
-    connect()
-
     symbol = 'WIN$'
-    #end_date = datetime(2022, 3, 17, 10, tzinfo=pytz.utc)
-    end_date = datetime.now().replace(tzinfo=pytz.utc)
-    start_date = end_date - timedelta(minutes=30)
+    day = 17
+    end_date = datetime(2022, 3, day, 17, 30, tzinfo=pytz.utc)
+    # end_date = datetime.now().replace(tzinfo=pytz.utc)
+    #start_date = end_date - timedelta(hours=2, minutes=30)
+    start_date = datetime(2022, 3, day, 9, 10, tzinfo=pytz.utc)
+
+    connect()
 
     status, ticks = get_ticks(symbol, start_date, end_date)
 
@@ -103,13 +153,20 @@ def main():
 
     disconnect()
 
-    add_sma(ticks, 'soft_sma', 'last', '5s')
-    add_sma(ticks, 'fast_sma', 'last', '15s')
-    add_sma(ticks, 'slow_sma', 'last', '30s')
+    logging.info('Computing SMA...')
+    add_sma(ticks, 'soft_sma', 'last', '10s')
+    add_sma(ticks, 'fast_sma', 'last', '30s')
+    add_sma(ticks, 'slow_sma', 'last', '60s')
 
-    trading_sim(ticks)
+    logging.info('Trading simulation...')
+    trading_sim = TradingSim()
+    trading_sim.sim(ticks)
 
-    plotting_ticks(ticks)
+    logging.info('Creating trading data frame...')
+    tradings = trading_sim.to_dataframe()
+
+    plotting_balance(tradings)
+    plotting_ticks(ticks, tradings, plot_last=True)
 
 
 if __name__ == "__main__":

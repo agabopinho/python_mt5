@@ -38,6 +38,8 @@ def get_ticks(
     ticks.index = pd.to_datetime(
         ticks['time_msc'], unit='ms', utc=True)
     ticks = ticks.drop(columns=['time', 'time_msc'])
+    
+    print(ticks)
 
     return status, ticks
 
@@ -76,16 +78,23 @@ def add_bollinger(ticks: pd.DataFrame, column_name: str, window: str, desviation
     ticks[down2] = ticks[sma] - ticks[std] * desviations2
 
 
-def plotting_ticks(ticks: pd.DataFrame, tradings: pd.DataFrame = None, plot_last: bool = False):
+def plotting_ticks(ticks: pd.DataFrame, tradings: pd.DataFrame = None, plot_price: bool = False):
     logging.info('Plotting ticks')
 
     fig = plt.figure()
 
-    if plot_last:
-        plt.plot(ticks.index, ticks['last'], 'k--', label='Last')
+    if plot_price:
+        plt.plot(ticks.index, ticks['ask'], 'r--', label='Ask')
+        plt.plot(ticks.index, ticks['bid'], 'b--', label='bid')
 
+    if 'bid_mean' in ticks.columns:
+        plt.plot(ticks.index, ticks['bid_mean'], 'r:', label='Bid Mean')
+
+    if 'ask_mean' in ticks.columns:
+        plt.plot(ticks.index, ticks['ask_mean'], 'b:', label='Ask Mean')
+        
     if 'soft_sma' in ticks.columns:
-        plt.plot(ticks.index, ticks['soft_sma'], 'y--', label='Soft SMA')
+        plt.plot(ticks.index, ticks['soft_sma'], 'k--', label='Soft SMA')
 
     if 'fast_sma' in ticks.columns:
         plt.plot(ticks.index, ticks['fast_sma'], 'm--', label='Fast SMA')
@@ -104,11 +113,12 @@ def plotting_ticks(ticks: pd.DataFrame, tradings: pd.DataFrame = None, plot_last
                 plt.plot(x_values, y_values, 'go', linestyle="--")
             else:
                 plt.plot(x_values, y_values, 'ro', linestyle="--")
-                
-            plt.text(point1[0]+timedelta(seconds=5), point1[1], 'BUY' if row['side'] == Side.BUY else 'SELL')
+
+            # plt.text(point1[0]+timedelta(seconds=5), point1[1],
+            #          'BUY' if row['side'] == Side.BUY else 'SELL')
 
     if 'bollinger_sma' in ticks.columns:
-        # plt.plot(ticks.index, ticks['bollinger_sma'], label='SMA', c='g')
+        plt.plot(ticks.index, ticks['bollinger_sma'], label='SMA', c='g')
         plt.plot(ticks['bollinger1_up'], 'k:', label='Bollinger 1 Up')
         plt.plot(ticks['bollinger1_down'], 'k:', label='Bollinger 1 Down')
         plt.plot(ticks['bollinger2_up'], 'k:', label='Bollinger 2 Up')
@@ -136,40 +146,18 @@ def plotting_balance(tradings: pd.DataFrame):
 
 
 def sma_signal(row: pd.Series, invert: bool = False) -> Side:
-    if row['soft_sma'] > row['fast_sma'] > row['slow_sma']:
+    if row['soft_sma'] >= row['fast_sma']:
         return Side.BUY
-    elif row['soft_sma'] < row['fast_sma'] < row['slow_sma']:
+    elif row['soft_sma'] <= row['fast_sma']:
         return Side.SELL
     return None
-
-
-def sma_signal_inverse(row: pd.Series) -> Side:
-    value = sma_signal(row)
-    if value is None:
-        return None
-    return Side.BUY if value == Side.SELL else Side.SELL
-
-
-def bollinger_signal(row: pd.Series) -> Side:
-    if row['soft_sma'] > row['bollinger1_up'] and row['soft_sma'] < row['bollinger2_up']:
-        return Side.SELL
-    elif row['soft_sma'] < row['bollinger1_down'] and row['soft_sma'] > row['bollinger2_down']:
-        return Side.BUY
-    return None
-
-
-def bollinger_signal_inverse(row: pd.Series) -> Side:
-    value = bollinger_signal(row)
-    if value is None:
-        return None
-    return Side.BUY if value == Side.SELL else Side.SELL
 
 
 def sim_day(symbol: str, day: int):
     end_date = datetime(2022, 3, day, 11, 50, tzinfo=pytz.utc)
     # end_date = datetime.now().replace(tzinfo=pytz.utc)
     # start_date = end_date - timedelta(hours=2, minutes=30)
-    start_date = datetime(2022, 3, day, 9, 10, tzinfo=pytz.utc)
+    start_date = datetime(2022, 3, day, 10, 10, tzinfo=pytz.utc)
 
     connect()
 
@@ -182,23 +170,17 @@ def sim_day(symbol: str, day: int):
     disconnect()
 
     logging.info('Computing SMA...')
-    add_sma(ticks, 'soft_sma', 'last', '10s')
-    # add_sma(ticks, 'fast_sma', 'last', '30s')
-    # add_sma(ticks, 'slow_sma', 'last', '120s')
-
-    logging.info('Computing Bollinger...')
-    add_bollinger(ticks, 'last', '20s', (2, 2))
+    add_sma(ticks, 'bid_mean', 'bid', '30s')
+    add_sma(ticks, 'ask_mean', 'ask', '30s')
 
     # logging.info('Trading simulation...')
     # trading_sim = TradingSim()
-    # trading_sim.sim(ticks, bollinger_signal_inverse, (100, 100))
+    # trading_sim.sim(ticks, sma_signal, (None, 150))
 
     # logging.info('Creating trading data frame...')
     # tradings = trading_sim.to_dataframe()
 
-    # plotting_balance(tradings)
-    # plotting_ticks(ticks, tradings)
-    plotting_ticks(ticks)
+    plotting_ticks(ticks, None, plot_price=True)
 
 
 def main():
@@ -211,7 +193,7 @@ def main():
         ]
     )
 
-    symbol = 'WIN$'
+    symbol = 'PETR4'
 
     for day in [18]:
         # for day in [14, 15, 16, 17, 18]:

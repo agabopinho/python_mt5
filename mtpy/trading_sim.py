@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from enum import Enum
 import logging
+from typing import Callable
 import pandas as pd
 
 
@@ -25,12 +26,17 @@ class Transaction:
         self.exit_price = exit_price
         self.operating_time = exit_time - self.entry_time
 
-        if self.side == Side.BUY:
-            self.pips = exit_price - self.entry_price
-        else:
-            self.pips = self.entry_price - exit_price
+        self.compute(exit_price)
 
         self.is_open = False
+
+    def compute(self, exit_price: float):
+        if self.side == Side.BUY:
+            self.pips = exit_price - self.entry_price
+        elif self.side == Side.SELL:
+            self.pips = self.entry_price - exit_price
+        else:
+            raise Exception('Invalid side', self.side)
 
     def to_item_list(self):
         return [
@@ -52,46 +58,60 @@ class Transaction:
 class TradingSim:
     def __init__(self):
         self.transactions = []
+        self.book_transactions = []
 
-    def sim(self, ticks: pd.DataFrame):
+    def sim(self, ticks: pd.DataFrame, signal: Callable[[pd.Series], Side], take_stop: tuple[float, float] = (float, float)):
         logging.info('Computing signals...')
 
-        ticks['signal'] = ticks.apply(self.signal, axis=1)
+        ticks['signal'] = ticks.apply(signal, axis=1)
 
         logging.info('Computing transactions...')
 
         transaction = None
+        previous_row = None
 
         for index, row in ticks.iterrows():
-            transaction = self.check_close(transaction, index, row)
+            transaction = self.__check_close(
+                transaction, index, row, take_stop)
 
             if transaction is None:
-                transaction = self.check_open(index, row)
-                if not transaction is None:
+                transaction = self.__check_open(index, row, previous_row)
+                if transaction:
                     self.transactions.append(transaction)
 
-    def signal(self, row: pd.Series) -> Side:
-        if row['soft_sma'] > row['fast_sma'] > row['slow_sma']:
-            return Side.BUY
-        elif row['soft_sma'] < row['fast_sma'] < row['slow_sma']:
-            return Side.SELL
-        return None
+            previous_row = row
 
-    def check_close(self, transaction: Transaction, index: datetime, row: pd.Series) -> Transaction:
-        if not transaction is None:
+    def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, take_stop: tuple[float, float] = (float, float)) -> Transaction:
+        if transaction:
+            book_price = row['bid'] if transaction.side == Side.BUY else row['ask']
+            transaction.compute(book_price)
+
+            if take_stop:
+                take, stop = take_stop
+
+                if not stop is None and transaction.pips <= -stop:
+                    transaction.close(index, book_price)
+                    return None
+
+                if not take is None and transaction.pips >= take:
+                    transaction.close(index, book_price)
+                    return None
+
             if transaction.side == Side.BUY and row['signal'] == Side.SELL:
-                transaction.close(index, row['bid'])
-                transaction = None
+                transaction.close(index, book_price)
+                return None
             elif transaction.side == Side.SELL and row['signal'] == Side.BUY:
-                transaction.close(index, row['ask'])
-                transaction = None
+                transaction.close(index, book_price)
+                return None
 
         return transaction
 
-    def check_open(self, index: datetime, row: pd.Series) -> Transaction:
-        if row['signal'] == Side.BUY:
+    def __check_open(self, index: datetime, row: pd.Series, previous_row: pd.Series) -> Transaction:
+        if previous_row is None:
+            return None
+        if row['signal'] == Side.BUY and previous_row['signal'] != Side.BUY:
             return Transaction(Side.BUY, index, row['ask'])
-        elif row['signal'] == Side.SELL:
+        elif row['signal'] == Side.SELL and previous_row['signal'] != Side.SELL:
             return Transaction(Side.SELL, index, row['bid'])
         return None
 

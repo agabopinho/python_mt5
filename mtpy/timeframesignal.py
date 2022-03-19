@@ -14,10 +14,10 @@ class TimeFrameSignal:
     def signal(self, item: pd.Series) -> Side:
         self.__items.append(item.copy(deep=False))
 
-        if len(self.__items) < 2:
+        if len(self.__items) < 10:
             return None
 
-        window = self.__items[-2:]
+        window = self.__items[-10:]
 
         if self.__cross_up_down(window.copy()):
             return Side.SELL

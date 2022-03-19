@@ -130,9 +130,9 @@ def plt_timeframe(timeframe: pd.DataFrame, tradings: pd.DataFrame = None):
     plt.show()
 
 
-def simulate_day(symbol: str, day: int):
+def simulate_day(symbol: str, day: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     # end_date = datetime.now().replace(tzinfo=pytz.utc)
-    end_date = datetime(2022, 3, day, 17, 00, tzinfo=pytz.utc)
+    end_date = datetime(2022, 3, day, 17, 20, tzinfo=pytz.utc)
     start_date = datetime(2022, 3, day, 9, 10, tzinfo=pytz.utc)
 
     connect()
@@ -147,23 +147,23 @@ def simulate_day(symbol: str, day: int):
 
     logging.info('Computing...')
 
-    timeframe = ticks.resample('10s')['last'].ohlc()
+    timeframe = ticks.resample('20s')['last'].ohlc()
     timeframe['sma_fast'] = timeframe.rolling(5)['open'].mean()
-    timeframe['sma_slow'] = timeframe.rolling(30)['open'].mean()
-
-    print(timeframe)
+    timeframe['sma_slow'] = timeframe.rolling(10)['open'].mean()
 
     signal = TimeFrameSignal(timeframe, ticks)
 
     logging.info('Trading simulate...')
     simulate = TradingSimulate(columns=('open', 'open'))
-    simulate.compute(timeframe, signal.signal, (None, 50))
+    simulate.compute(timeframe, signal.signal, (None, 100))
 
     logging.info('Creating trading data frame...')
     tradings = simulate.to_dataframe()
 
-    plt_balance(tradings)
+    # plt_balance(tradings)
     # plt_timeframe(timeframe, tradings)
+
+    return ticks, timeframe, tradings
 
 
 def main():
@@ -177,10 +177,29 @@ def main():
 
     symbol = 'WIN$'
 
-    for day in [7, 8, 9, 10, 11, 14, 15, 16, 17, 18]:
+    all_tradings = None
+    all_timeframe = None
+
+    for day in [14]:
+    # for day in [7, 8, 9, 10, 11, 14, 15, 16, 17, 18]:
         # for day in [14, 15, 16, 17, 18]:
         # for day in [7, 8, 9, 10, 11]:
-        simulate_day(symbol, day)
+        _, timeframe, tradings = simulate_day(symbol, day)
+
+        if all_tradings is None:
+            all_tradings = tradings
+        else:
+            all_tradings = pd.concat([all_tradings, tradings])
+
+        if all_timeframe is None:
+            all_timeframe = timeframe
+        else:
+            all_timeframe = pd.concat([all_timeframe, timeframe])
+
+    all_tradings['balance'] = all_tradings['pips'].cumsum()
+
+    plt_balance(all_tradings)
+    plt_timeframe(all_timeframe, all_tradings)
 
 
 if __name__ == "__main__":

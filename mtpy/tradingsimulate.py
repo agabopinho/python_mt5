@@ -1,7 +1,8 @@
+import logging
 from datetime import datetime, timedelta
 from enum import Enum
-import logging
 from typing import Callable
+
 import pandas as pd
 
 
@@ -55,35 +56,34 @@ class Transaction:
             f', is_open={self.is_open})'
 
 
-class TradingSim:
-    def __init__(self):
+class TradingSimulate:
+    def __init__(self, columns: tuple[str, str] = ('bid', 'ask')):
         self.transactions = []
         self.book_transactions = []
+        self.columns = columns
 
-    def sim(self, ticks: pd.DataFrame, signal: Callable[[pd.Series], Side], take_stop: tuple[float, float] = (float, float)):
+    def compute(self, data: pd.DataFrame, signal: Callable[[pd.Series], Side], take_stop: tuple[float, float] = (float, float)):
         logging.info('Computing signals...')
 
-        ticks['signal'] = ticks.apply(signal, axis=1)
+        data['signal'] = data.apply(signal, axis=1)
 
         logging.info('Computing transactions...')
 
         transaction = None
-        previous_row = None
 
-        for index, row in ticks.iterrows():
+        for index, row in data.iterrows():
             transaction = self.__check_close(
                 transaction, index, row, take_stop)
 
             if transaction is None:
-                transaction = self.__check_open(index, row, previous_row)
+                transaction = self.__check_open(index, row)
                 if transaction:
                     self.transactions.append(transaction)
 
-            previous_row = row
-
     def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, take_stop: tuple[float, float] = (float, float)) -> Transaction:
+        bid, ask = self.columns
         if transaction:
-            book_price = row['bid'] if transaction.side == Side.BUY else row['ask']
+            book_price = row[bid] if transaction.side == Side.BUY else row[ask]
             transaction.compute(book_price)
 
             if take_stop:
@@ -106,13 +106,12 @@ class TradingSim:
 
         return transaction
 
-    def __check_open(self, index: datetime, row: pd.Series, previous_row: pd.Series) -> Transaction:
-        if previous_row is None:
-            return None
-        if row['signal'] == Side.BUY and previous_row['signal'] != Side.BUY:
-            return Transaction(Side.BUY, index, row['ask'])
-        elif row['signal'] == Side.SELL and previous_row['signal'] != Side.SELL:
-            return Transaction(Side.SELL, index, row['bid'])
+    def __check_open(self, index: datetime, row: pd.Series) -> Transaction:
+        bid, ask = self.columns
+        if row['signal'] == Side.BUY:
+            return Transaction(Side.BUY, index, row[ask])
+        elif row['signal'] == Side.SELL:
+            return Transaction(Side.SELL, index, row[bid])
         return None
 
     def to_dataframe(self):

@@ -145,7 +145,7 @@ def plotting_balance(tradings: pd.DataFrame):
     plt.close(fig)
 
 
-def sma_signal(row: pd.Series, invert: bool = False) -> Side:
+def sma_signal(row: pd.Series) -> Side:
     if row['soft_sma'] >= row['fast_sma']:
         return Side.BUY
     elif row['soft_sma'] <= row['fast_sma']:

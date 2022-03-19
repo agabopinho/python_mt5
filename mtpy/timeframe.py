@@ -29,11 +29,11 @@ def get_ticks(
 
     status, status_message = mt5.last_error()
     if not status == mt5.RES_S_OK:
-        logging.info("Get ticks failed, error code =",
-                     (status, status_message))
-        status, None
+        logging.error(
+            f'Get ticks failed, error code = {(status, status_message)}')
+        return status, None
 
-    logging.info('Get ticks success...')
+    logging.info(f'Get ticks success... {(status, status_message)}')
     ticks = pd.DataFrame(mt5_ticks)
     ticks = ticks.loc[ticks['last'] > 0]
 
@@ -130,11 +130,14 @@ def plt_timeframe(timeframe: pd.DataFrame, tradings: pd.DataFrame = None):
     plt.show()
 
 
-def simulate_day(symbol: str, day: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    # end_date = datetime.now().replace(tzinfo=pytz.utc)
-    end_date = datetime(2022, 3, day, 17, 20, tzinfo=pytz.utc)
-    start_date = datetime(2022, 3, day, 9, 10, tzinfo=pytz.utc)
-
+def simulate(symbol: str,
+             start_date: datetime,
+             end_date: datetime,
+             take_stop: tuple[float, float],
+             period: any,
+             fast: any,
+             slow: any,
+             inverse: bool = False) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     connect()
 
     status, ticks = get_ticks(symbol, start_date, end_date)
@@ -147,21 +150,21 @@ def simulate_day(symbol: str, day: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.
 
     logging.info('Computing...')
 
-    timeframe = ticks.resample('20s')['last'].ohlc()
-    timeframe['sma_fast'] = timeframe.rolling(5)['open'].mean()
-    timeframe['sma_slow'] = timeframe.rolling(10)['open'].mean()
+    if len(ticks) == 0:
+        return None, None, None
 
-    signal = TimeFrameSignal(timeframe, ticks)
+    timeframe = ticks.resample(period)['last'].ohlc()
+    timeframe['sma_fast'] = timeframe.rolling(fast)['open'].mean()
+    timeframe['sma_slow'] = timeframe.rolling(slow)['open'].mean()
+
+    signal = TimeFrameSignal(timeframe, ticks, inverse)
 
     logging.info('Trading simulate...')
     simulate = TradingSimulate(columns=('open', 'open'))
-    simulate.compute(timeframe, signal.signal, (None, 100))
+    simulate.compute(timeframe, signal.signal, take_stop)
 
     logging.info('Creating trading data frame...')
     tradings = simulate.to_dataframe()
-
-    # plt_balance(tradings)
-    # plt_timeframe(timeframe, tradings)
 
     return ticks, timeframe, tradings
 
@@ -175,31 +178,41 @@ def main():
         ]
     )
 
-    symbol = 'WIN$'
+    # ['RENT3', 'USIM5', 'B3SA3', 'ECOR3', 'BBAS3', 'GOAU4', 'ITSA4', 'BBDC4', 'CYRE3', 'ECOR3']:
+    # ['RENT3', 'ITSA4', 'BBDC4', 'CYRE3', 'ECOR3']:
+    # ITSA4 -> melhor performance period='60s', fast='300s', slow='600s', inverse=True
+    
+    for symbol in ['ITSA4']:
+        all_tradings = None
+        all_timeframe = None
 
-    all_tradings = None
-    all_timeframe = None
+        for day in reversed(range(7)):
+            date = datetime.now() - timedelta(days=day)
+            end_date = datetime(date.year, date.month,
+                                date.day, 16, 0, tzinfo=pytz.utc)
+            start_date = datetime(date.year, date.month,
+                                date.day, 10, 10, tzinfo=pytz.utc)
 
-    for day in [14]:
-    # for day in [7, 8, 9, 10, 11, 14, 15, 16, 17, 18]:
-        # for day in [14, 15, 16, 17, 18]:
-        # for day in [7, 8, 9, 10, 11]:
-        _, timeframe, tradings = simulate_day(symbol, day)
+            _, timeframe, tradings = simulate(
+                symbol, start_date, end_date, (None, None), period='60s', fast='300s', slow='600s', inverse=True)
 
-        if all_tradings is None:
-            all_tradings = tradings
-        else:
-            all_tradings = pd.concat([all_tradings, tradings])
+            if tradings is None:
+                continue
 
-        if all_timeframe is None:
-            all_timeframe = timeframe
-        else:
-            all_timeframe = pd.concat([all_timeframe, timeframe])
+            if all_tradings is None:
+                all_tradings = tradings
+            else:
+                all_tradings = pd.concat([all_tradings, tradings])
 
-    all_tradings['balance'] = all_tradings['pips'].cumsum()
+            if all_timeframe is None:
+                all_timeframe = timeframe
+            else:
+                all_timeframe = pd.concat([all_timeframe, timeframe])
 
-    plt_balance(all_tradings)
-    plt_timeframe(all_timeframe, all_tradings)
+        all_tradings['balance'] = all_tradings['pips'].cumsum()
+
+        plt_balance(all_tradings)
+        plt_timeframe(all_timeframe, all_tradings)
 
 
 if __name__ == "__main__":

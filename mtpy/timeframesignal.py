@@ -6,9 +6,10 @@ from tradingsimulate import Side
 
 
 class TimeFrameSignal:
-    def __init__(self, timeframe: pd.DataFrame, ticks: pd.DataFrame):
+    def __init__(self, timeframe: pd.DataFrame, ticks: pd.DataFrame, inverse: bool = False):
         self.timeframe = timeframe
         self.ticks = ticks
+        self.inverse = inverse
         self.__items = []
 
     def signal(self, item: pd.Series) -> Side:
@@ -20,10 +21,10 @@ class TimeFrameSignal:
         window = self.__items[-10:]
 
         if self.__cross_up_down(window.copy()):
-            return Side.SELL
+            return Side.SELL if not self.inverse else Side.BUY
 
         if self.__cross_down_up(window.copy()):
-            return Side.BUY
+            return Side.BUY if not self.inverse else Side.SELL
 
         return None
 

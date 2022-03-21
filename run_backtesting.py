@@ -187,20 +187,20 @@ def main():
     # ITSA4, RENT3, DI1F23
 
     client = MT5Client()
-    for symbol in ['WIN$']:
+    for symbol in ['ITSA4']:
         all_tradings = None
         all_timeframe = None
 
-        for day in reversed(range(3)):
+        for day in reversed(range(20)):
             date = datetime.now() - timedelta(days=day)
             end_date = datetime(date.year, date.month,
-                                date.day, 16, 0, tzinfo=pytz.utc)
+                                date.day, 10, 55, tzinfo=pytz.utc)
             start_date = datetime(date.year, date.month,
-                                  date.day, 10, 10, tzinfo=pytz.utc)
+                                  date.day, 9, 10, tzinfo=pytz.utc)
 
             _, timeframe, tradings = simulate(
                 client, symbol, start_date, end_date,
-                (100, 50), period_seconds=30, fast=1, slow=10, inverse=False)
+                (.03, .03), period_seconds=20, fast=1, slow=5, inverse=False)
 
             if tradings is None:
                 continue

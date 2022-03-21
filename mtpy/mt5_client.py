@@ -32,8 +32,6 @@ class MT5Client:
         ticks = pd.DataFrame(mt5_ticks)
         ticks = ticks.loc[ticks['last'] > 0]
 
-        ticks['mid'] = (ticks['bid'] + ticks['ask']) / 2
-
         # set index
         ticks.index = pd.to_datetime(
             ticks['time_msc'], unit='ms', utc=True)

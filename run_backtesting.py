@@ -1,7 +1,7 @@
 import logging
-from pprint import pformat
 import time
 from datetime import datetime, timedelta
+from pprint import pformat
 from typing import Tuple
 
 import matplotlib.pyplot as plt
@@ -14,50 +14,9 @@ from pyparsing import any_open_tag, col
 
 from advisor.timeframesignal import TimeFrameSignal
 from backtesting.tradingsimulate import Side, TradingSimulate
+from mtpy.mt5_client import MT5Client
 
 register_matplotlib_converters()
-
-
-def get_ticks(
-        symbol: str,
-        start_date: datetime,
-        end_date: datetime,
-        ticks_info: int = mt5.COPY_TICKS_INFO) -> Tuple[int, pd.DataFrame]:
-
-    logging.info(f'Get ticks {symbol} - start {start_date} end {end_date}')
-    mt5_ticks = mt5.copy_ticks_range(
-        symbol, start_date, end_date, ticks_info)
-
-    status, status_message = mt5.last_error()
-    if not status == mt5.RES_S_OK:
-        logging.error(
-            f'Get ticks failed, error code = {(status, status_message)}')
-        return status, None
-
-    logging.info(f'Get ticks success... {(status, status_message)}')
-    ticks = pd.DataFrame(mt5_ticks)
-    ticks = ticks.loc[ticks['last'] > 0]
-
-    ticks['mid'] = (ticks['bid'] + ticks['ask']) / 2
-
-    # set index
-    ticks.index = pd.to_datetime(
-        ticks['time_msc'], unit='ms', utc=True)
-    ticks = ticks.drop(columns=['time', 'time_msc'])
-
-    return status, ticks
-
-
-def connect():
-    logging.info('Connect to MetaTrader 5...')
-    if not mt5.initialize():
-        logging.info("initialize() failed")
-        mt5.shutdown()
-
-
-def disconnect():
-    logging.info('Disconnect from MetaTrader 5...')
-    mt5.shutdown()
 
 
 def plt_ticks(ticks: pd.DataFrame, tradings: pd.DataFrame = None, plot_price: bool = False):
@@ -131,37 +90,83 @@ def plt_timeframe(timeframe: pd.DataFrame, tradings: pd.DataFrame = None):
     plt.show()
 
 
-def simulate(symbol: str,
+def set_price(timeframe: pd.DataFrame, ticks: pd.DataFrame, period_seconds: int):
+    open_time = []
+    open_bid = []
+    open_ask = []
+
+    last_frametick = None
+
+    for index, _ in timeframe.iterrows():
+        from_date = index
+        to_date = index + timedelta(seconds=period_seconds)
+
+        frame_ticks = ticks.loc[(ticks.index >= from_date)
+                                & (ticks.index < to_date)]
+
+        first_tick = None
+        if len(frame_ticks) > 0:
+            first_tick = frame_ticks.iloc[0]
+
+        timeframe_tick = None
+        if not first_tick is None and first_tick.name - from_date <= timedelta(seconds=1):
+            timeframe_tick = first_tick
+        elif not last_frametick is None:
+            timeframe_tick = last_frametick
+
+        if not timeframe_tick is None:
+            open_time.append(timeframe_tick.name)
+            open_bid.append(timeframe_tick['bid'])
+            open_ask.append(timeframe_tick['ask'])
+        else:
+            open_time.append(from_date)
+            open_bid.append(0)
+            open_ask.append(0)
+
+        if len(frame_ticks) > 0:
+            last_frametick = frame_ticks.iloc[-1]
+
+    timeframe['time_price'] = open_time
+    timeframe['open_bid'] = open_bid
+    timeframe['open_ask'] = open_ask
+
+
+def simulate(client: MT5Client,
+             symbol: str,
              start_date: datetime,
              end_date: datetime,
              take_stop: tuple[float, float],
-             period: any,
+             period_seconds: int,
              fast: any,
              slow: any,
              inverse: bool = False) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    connect()
 
-    status, ticks = get_ticks(symbol, start_date, end_date)
+    client.connect()
+    status, ticks = client.get_ticks(symbol, start_date, end_date)
 
     if status != mt5.RES_S_OK:
-        disconnect()
+        client.disconnect()
         quit()
 
-    disconnect()
+    client.disconnect()
 
     logging.info('Computing...')
 
     if len(ticks) == 0:
         return None, None, None
 
-    timeframe = ticks.resample(period)['last'].ohlc()
-    timeframe['sma_fast'] = timeframe.rolling(fast)['open'].mean()
-    timeframe['sma_slow'] = timeframe.rolling(slow)['open'].mean()
+    timeframe = ticks.resample(f'{period_seconds}s')['last'].ohlc()
+    timeframe['sma_fast'] = timeframe.rolling(
+        fast, min_periods=1)['open'].mean()
+    timeframe['sma_slow'] = timeframe.rolling(
+        slow, min_periods=1)['open'].mean()
+
+    set_price(timeframe, ticks, period_seconds)
 
     signal = TimeFrameSignal(inverse)
 
     logging.info('Trading simulate...')
-    simulate = TradingSimulate(columns=('open', 'open'))
+    simulate = TradingSimulate(columns=('open_bid', 'open_ask'))
     simulate.compute(timeframe, signal.apply, take_stop)
 
     logging.info('Creating trading data frame...')
@@ -179,15 +184,14 @@ def main():
         ]
     )
 
-    # ['RENT3', 'USIM5', 'B3SA3', 'ECOR3', 'BBAS3', 'GOAU4', 'ITSA4', 'BBDC4', 'CYRE3', 'ECOR3']:
-    # ['RENT3', 'ITSA4', 'BBDC4', 'CYRE3', 'ECOR3']:
-    # ITSA4 -> melhor performance period='60s', fast='300s', slow='600s', inverse=True
+    # ITSA4, RENT3, DI1F23
 
-    for symbol in ['RENT3', 'ITSA4']:
+    client = MT5Client()
+    for symbol in ['WIN$']:
         all_tradings = None
         all_timeframe = None
 
-        for day in reversed(range(30)):
+        for day in reversed(range(3)):
             date = datetime.now() - timedelta(days=day)
             end_date = datetime(date.year, date.month,
                                 date.day, 16, 0, tzinfo=pytz.utc)
@@ -195,7 +199,8 @@ def main():
                                   date.day, 10, 10, tzinfo=pytz.utc)
 
             _, timeframe, tradings = simulate(
-                symbol, start_date, end_date, (None, .02), period='60s', fast='300s', slow='600s', inverse=True)
+                client, symbol, start_date, end_date,
+                (100, 50), period_seconds=30, fast=1, slow=10, inverse=False)
 
             if tradings is None:
                 continue
@@ -211,8 +216,6 @@ def main():
                 all_timeframe = pd.concat([all_timeframe, timeframe])
 
         all_tradings['balance'] = all_tradings['pips'].cumsum()
-
-        all_tradings.to_csv('trades.csv', sep='\t')
 
         plt_balance(all_tradings)
         plt_timeframe(all_timeframe, all_tradings)

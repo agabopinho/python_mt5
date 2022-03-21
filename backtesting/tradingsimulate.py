@@ -4,11 +4,7 @@ from enum import Enum
 from typing import Callable
 
 import pandas as pd
-
-
-class Side(Enum):
-    BUY = 1,
-    SELL = 2
+from advisor.timeframesignal import Side
 
 
 class Transaction:

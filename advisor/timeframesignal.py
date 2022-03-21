@@ -1,18 +1,20 @@
 
+from enum import Enum
 from pprint import pformat
 import pandas as pd
 
-from tradingsimulate import Side
+
+class Side(Enum):
+    BUY = 1,
+    SELL = 2
 
 
 class TimeFrameSignal:
-    def __init__(self, timeframe: pd.DataFrame, ticks: pd.DataFrame, inverse: bool = False):
-        self.timeframe = timeframe
-        self.ticks = ticks
+    def __init__(self, inverse: bool = False):
         self.inverse = inverse
         self.__items = []
 
-    def signal(self, item: pd.Series) -> Side:
+    def apply(self, item: pd.Series) -> Side:
         self.__items.append(item.copy(deep=False))
 
         if len(self.__items) < 10:

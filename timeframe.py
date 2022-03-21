@@ -1,4 +1,5 @@
 import logging
+from pprint import pformat
 import time
 from datetime import datetime, timedelta
 from typing import Tuple
@@ -11,8 +12,8 @@ import pytz
 from pandas.plotting import register_matplotlib_converters
 from pyparsing import any_open_tag, col
 
-from timeframesignal import TimeFrameSignal
-from tradingsimulate import TradingSimulate, Side
+from advisor.timeframesignal import TimeFrameSignal
+from backtesting.tradingsimulate import Side, TradingSimulate
 
 register_matplotlib_converters()
 
@@ -157,11 +158,11 @@ def simulate(symbol: str,
     timeframe['sma_fast'] = timeframe.rolling(fast)['open'].mean()
     timeframe['sma_slow'] = timeframe.rolling(slow)['open'].mean()
 
-    signal = TimeFrameSignal(timeframe, ticks, inverse)
+    signal = TimeFrameSignal(inverse)
 
     logging.info('Trading simulate...')
     simulate = TradingSimulate(columns=('open', 'open'))
-    simulate.compute(timeframe, signal.signal, take_stop)
+    simulate.compute(timeframe, signal.apply, take_stop)
 
     logging.info('Creating trading data frame...')
     tradings = simulate.to_dataframe()
@@ -181,20 +182,20 @@ def main():
     # ['RENT3', 'USIM5', 'B3SA3', 'ECOR3', 'BBAS3', 'GOAU4', 'ITSA4', 'BBDC4', 'CYRE3', 'ECOR3']:
     # ['RENT3', 'ITSA4', 'BBDC4', 'CYRE3', 'ECOR3']:
     # ITSA4 -> melhor performance period='60s', fast='300s', slow='600s', inverse=True
-    
-    for symbol in ['ITSA4']:
+
+    for symbol in ['RENT3', 'ITSA4']:
         all_tradings = None
         all_timeframe = None
 
-        for day in reversed(range(7)):
+        for day in reversed(range(30)):
             date = datetime.now() - timedelta(days=day)
             end_date = datetime(date.year, date.month,
                                 date.day, 16, 0, tzinfo=pytz.utc)
             start_date = datetime(date.year, date.month,
-                                date.day, 10, 10, tzinfo=pytz.utc)
+                                  date.day, 10, 10, tzinfo=pytz.utc)
 
             _, timeframe, tradings = simulate(
-                symbol, start_date, end_date, (None, None), period='60s', fast='300s', slow='600s', inverse=True)
+                symbol, start_date, end_date, (None, .02), period='60s', fast='300s', slow='600s', inverse=True)
 
             if tradings is None:
                 continue
@@ -210,6 +211,8 @@ def main():
                 all_timeframe = pd.concat([all_timeframe, timeframe])
 
         all_tradings['balance'] = all_tradings['pips'].cumsum()
+
+        all_tradings.to_csv('trades.csv', sep='\t')
 
         plt_balance(all_tradings)
         plt_timeframe(all_timeframe, all_tradings)

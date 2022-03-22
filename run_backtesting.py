@@ -47,12 +47,12 @@ def plt_ticks(ticks: pd.DataFrame, tradings: pd.DataFrame = None, plot_price: bo
     plt.close(fig)
 
 
-def plt_balance(tradings: pd.DataFrame):
+def plt_balance(trades: pd.DataFrame):
     logging.info('Plotting balance')
-    print(tradings)
+    print(trades)
 
     fig = plt.figure()
-    plt.plot(tradings.index, tradings['balance'], 'y-', label='Balance')
+    plt.plot(trades.index, trades['balance'], 'y-', label='Balance')
 
     plt.legend(loc='upper left')
     plt.title(f'Info')
@@ -184,23 +184,21 @@ def main():
         ]
     )
 
-    # ITSA4, RENT3, DI1F23
-
     client = MT5Client()
     for symbol in ['ITSA4']:
         all_tradings = None
         all_timeframe = None
 
-        for day in reversed(range(20)):
+        for day in reversed(range(60)):
             date = datetime.now() - timedelta(days=day)
             end_date = datetime(date.year, date.month,
-                                date.day, 10, 55, tzinfo=pytz.utc)
+                                date.day, 16, 20, tzinfo=pytz.utc)
             start_date = datetime(date.year, date.month,
-                                  date.day, 9, 10, tzinfo=pytz.utc)
+                                  date.day, 10, 10, tzinfo=pytz.utc)
 
             _, timeframe, tradings = simulate(
                 client, symbol, start_date, end_date,
-                (.03, .03), period_seconds=20, fast=1, slow=5, inverse=False)
+                (None, None), period_seconds=600, fast=1, slow=10, inverse=False)
 
             if tradings is None:
                 continue
@@ -212,6 +210,7 @@ def main():
 
             if all_timeframe is None:
                 all_timeframe = timeframe
+
             else:
                 all_timeframe = pd.concat([all_timeframe, timeframe])
 

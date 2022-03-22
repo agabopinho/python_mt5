@@ -76,6 +76,12 @@ class TradingSimulate:
                 if transaction:
                     self.transactions.append(transaction)
 
+        if not transaction is None:
+            row = data.iloc[-1]
+            bid, ask = self.columns
+            book_price = row[bid] if transaction.side == Side.BUY else row[ask]
+            transaction.close(index, book_price)
+
     def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, take_stop: tuple[float, float] = (float, float)) -> Transaction:
         bid, ask = self.columns
         if transaction:
@@ -84,11 +90,9 @@ class TradingSimulate:
 
             if take_stop:
                 take, stop = take_stop
-
                 if not stop is None and transaction.pips <= -stop:
                     transaction.close(index, book_price)
                     return None
-
                 if not take is None and transaction.pips >= take:
                     transaction.close(index, book_price)
                     return None
@@ -106,7 +110,7 @@ class TradingSimulate:
         bid, ask = self.columns
         if row['signal'] == Side.BUY:
             return Transaction(Side.BUY, index, row[ask])
-        elif row['signal'] == Side.SELL:
+        if row['signal'] == Side.SELL:
             return Transaction(Side.SELL, index, row[bid])
         return None
 

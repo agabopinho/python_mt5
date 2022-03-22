@@ -28,7 +28,7 @@ class MT5Client:
                 f'Get ticks failed, error code = {(status, status_message)}')
             return status, None
 
-        logging.info(f'Get ticks success... {(status, status_message)}')
+        logging.info(f'Get ticks success... {(status, status_message, len(mt5_ticks))}')
         ticks = pd.DataFrame(mt5_ticks)
         ticks = ticks.loc[ticks['last'] > 0]
 

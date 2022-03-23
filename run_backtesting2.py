@@ -10,8 +10,8 @@ from ta.volatility import AverageTrueRange, KeltnerChannel
 
 from advisor.timeframesignal import Side
 from backtesting.tradingsimulate import TradingSimulate
-from mtpy.mt5_client import MT5Client
-from run_backtesting import plt_balance
+from strategy.mt5_client import MT5Client
+from run_backtesting1 import plt_balance
 
 register_matplotlib_converters()
 

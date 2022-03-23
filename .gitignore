@@ -1,4 +1,4 @@
-outputs/**
-source_data/**
+**/outputs/**
+**/source_data/**
 **/__pycache__/**
 **.csv

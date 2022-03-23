@@ -1,14 +1,34 @@
 import logging
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Tuple
 
 import MetaTrader5 as mt5
 import pandas as pd
 import pytz
 
-from mtpy.mt5_client import MT5Client
-from advisor.timeframesignal import TimeFrameSignal
+from strategy import Side
+from strategy.mt5_client import MT5Client
+
+
+class SmaSignal:
+    def __init__(self):
+        self.__state = []
+
+    def apply(self, item: pd.Series) -> Side:
+        self.__state.append(item.copy())
+
+        if len(self.__state) < 3:
+            return None
+
+        preivous = self.__state[-2]
+
+        if preivous['sma_1'] > preivous['sma_2'] and self.__state[-3]['sma_1'] < self.__state[-3]['sma_2']:
+            return Side.BUY
+
+        if preivous['sma_1'] < preivous['sma_2'] and self.__state[-3]['sma_1'] > self.__state[-3]['sma_2']:
+            return Side.SELL
+
+        return None
 
 
 class Loop:

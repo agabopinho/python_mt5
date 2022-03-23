@@ -12,9 +12,8 @@ import pytz
 from pandas.plotting import register_matplotlib_converters
 from pyparsing import any_open_tag, col
 
-from advisor.timeframesignal import TimeFrameSignal
 from backtesting.tradingsimulate import Side, TradingSimulate
-from mtpy.mt5_client import MT5Client
+from strategy.mt5_client import MT5Client
 
 register_matplotlib_converters()
 

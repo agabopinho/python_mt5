@@ -1,59 +1,16 @@
 import logging
-from datetime import datetime, timedelta
-from enum import Enum
+from datetime import datetime
 from typing import Callable
 
 import pandas as pd
-from advisor.timeframesignal import Side
+from strategy import Side
 
-
-class Transaction:
-    def __init__(self, side: Side, entry_time: datetime, entry_price: float):
-        self.side = side
-        self.entry_time = entry_time
-        self.entry_price = entry_price
-        self.exit_price = float(0)
-        self.exit_time = datetime.min
-        self.operating_time = timedelta(seconds=0)
-        self.pips = float(0)
-        self.is_open = True
-
-    def close(self, exit_time: datetime, exit_price: float):
-        self.exit_time = exit_time
-        self.exit_price = exit_price
-        self.operating_time = exit_time - self.entry_time
-
-        self.compute(exit_price)
-
-        self.is_open = False
-
-    def compute(self, exit_price: float):
-        if self.side == Side.BUY:
-            self.pips = exit_price - self.entry_price
-        elif self.side == Side.SELL:
-            self.pips = self.entry_price - exit_price
-        else:
-            raise Exception('Invalid side', self.side)
-
-    def to_item_list(self):
-        return [
-            self.side, self.entry_time, self.entry_price,
-            self.exit_price, self.exit_time, self.operating_time,
-            self.pips, self.is_open]
-
-    def __str__(self):
-        return f'Transaction(side={self.side}' + \
-            f', entry_time={self.entry_time}' + \
-            f', entry_price={self.entry_price}' + \
-            f', exit_time={self.exit_time}' + \
-            f', exit_price={self.exit_price}' + \
-            f', operating_time={self.operating_time}' + \
-            f', pips={self.pips}' + \
-            f', is_open={self.is_open})'
+from backtesting.transaction import Transaction
 
 
 class TradingSimulate:
-    def __init__(self, columns: tuple[str, str] = ('bid', 'ask')):
+    def __init__(self, sides: list[Side] = [Side.BUY, Side.SELL], columns: tuple[str, str] = ('bid', 'ask')):
+        self.sides = sides
         self.transactions = []
         self.book_transactions = []
         self.columns = columns
@@ -108,9 +65,9 @@ class TradingSimulate:
 
     def __check_open(self, index: datetime, row: pd.Series) -> Transaction:
         bid, ask = self.columns
-        if row['signal'] == Side.BUY:
+        if row['signal'] == Side.BUY and Side.BUY in self.sides:
             return Transaction(Side.BUY, index, row[ask])
-        if row['signal'] == Side.SELL:
+        if row['signal'] == Side.SELL and Side.SELL in self.sides:
             return Transaction(Side.SELL, index, row[bid])
         return None
 
@@ -128,7 +85,3 @@ class TradingSimulate:
         df['balance'] = df['pips'].cumsum()
 
         return df
-
-
-if __name__ == "__main__":
-    quit()

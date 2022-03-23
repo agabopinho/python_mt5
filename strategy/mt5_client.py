@@ -17,7 +17,6 @@ class MT5Client:
             end_date: datetime,
             ticks_info: int = mt5.COPY_TICKS_INFO
     ) -> Tuple[int, pd.DataFrame]:
-
         logging.info(f'Get ticks {symbol} - start {start_date} end {end_date}')
         mt5_ticks = mt5.copy_ticks_range(
             symbol, start_date, end_date, ticks_info)

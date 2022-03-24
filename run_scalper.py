@@ -1,9 +1,11 @@
 import logging
+import math
+import random
+from cmath import log
 from datetime import datetime, timedelta
 from time import sleep
 
 import MetaTrader5 as mt5
-from numpy import char
 import pandas as pd
 import pytz
 
@@ -16,59 +18,73 @@ class SmaSignal:
         self.__state = []
 
     def apply(self, item: pd.Series) -> Side:
-        self.__state.append(item.copy())
+        self.__state.append(item)
 
         if len(self.__state) < 2:
             return None
 
+        current = self.__state[-1]
         preivous = self.__state[-2]
 
-        if preivous['sma_1'] > preivous['sma_2']:
+        if preivous['sma_1'] > preivous['sma_2'] and current['close'] > preivous['sma_1'] and current['close'] > preivous['sma_2']:
             return Side.BUY
 
-        if preivous['sma_1'] < preivous['sma_2']:
+        if preivous['sma_1'] < preivous['sma_2'] and current['close'] < preivous['sma_1'] and current['close'] < preivous['sma_2']:
             return Side.SELL
+
+        if len(self.__state) > 2:
+            self.__state = self.__state[-2:]
 
         return None
 
 
 class Loop:
-    def __init__(self, client: MT5Client, offset: timedelta, sim_startdate: datetime = None):
-        self.symbol = 'WINJ22'
-        self.frame = '15s'
+    def __init__(self, client: MT5Client, symbol: str, lot: float, frame: str, offset: timedelta, period: int, simulate: dict):
+        self.symbol = symbol
+        self.frame = frame
 
         self.client = client
         self.offset = offset
-        self.sim_startdate = None
-        self.signal = SmaSignal()
-        self.odd_candle = None
+        self.period = period
         self.symbol_info = None
-        self.lot = 1
+        self.lot = lot
         self.desviation = 20
         self.magic = 5544
-        self.candle = None
+        self.ticks = pd.DataFrame()
+        self.bars = pd.DataFrame()
+        self.previous_bar = pd.Series()
+        self.simulate = simulate
+        self.requests = pd.DataFrame()
 
-        if not sim_startdate is None:
-            if sim_startdate.tzinfo != pytz.utc:
+        self.__sim_startdate = None
+
+        if self.simulate['simulation']:
+            if not self.simulate['startdate'] or type(self.simulate['startdate']) != datetime or self.simulate['startdate'].tzinfo != pytz.utc:
                 raise Exception(
-                    'Invalid arg: sim_enddate, message: The time zone needs to be utc.')
+                    'Invalid arg: simulate startdate.')
 
-            self.sim_startdate = sim_startdate
+            self.__sim_startdate = self.simulate['startdate']
+            self.simulate['sendorders'] = False
+        elif not 'sendorders' in self.simulate:
+            self.simulate['sendorders'] = False
 
-    def __check_symbol(self) -> bool:
+        if not 'online' in self.simulate:
+            self.simulate['online'] = False
+
+    def __loadsymbol(self) -> bool:
         self.symbol_info = mt5.symbol_info(self.symbol)
 
         if self.symbol_info is None:
             logging.error(
-                f'The {self.symbol} not found, can not call order_check()')
+                f'Symbol not found: {self.symbol}')
             return False
 
         if not self.symbol_info.visible:
             logging.info(
-                f'The {self.symbol} is not visible, trying to switch on')
+                f'Symbol is not visible, trying to switch on: {self.symbol}')
 
             if not mt5.symbol_select(self.symbol, True):
-                logging.error(f'Symbol select failed')
+                logging.error(f'Symbol select failed: {self.symbol}')
                 return False
 
         return True
@@ -76,53 +92,113 @@ class Loop:
     def __dates(self):
         end_date = datetime.now().replace(tzinfo=pytz.utc) + timedelta(seconds=10)
 
-        if not self.sim_startdate is None:
-            end_date = self.sim_startdate
-            self.sim_startdate += timedelta(seconds=1)
+        if self.__sim_startdate:
+            end_date = self.__sim_startdate
+            self.__sim_startdate += timedelta(seconds=1)
 
         start_date = end_date - self.offset
 
         return start_date, end_date
 
-    def __ticks(self):
+    def __compute_bars(self):
+        p = self.period
+        bars = self.ticks.resample(self.frame)['last'].ohlc()
+        bars['sma_1'] = bars.rolling(p, min_periods=1)['close'].mean()
+        bars['sma_2'] = bars.rolling(p, min_periods=1)['open'].mean()
+        bars['signal'] = bars.apply(SmaSignal().apply, axis=1)
+
+        self.bars = bars
+
+    def __loadticks(self) -> bool:
         start_date, end_date = self.__dates()
 
         status, ticks = self.client.get_ticks(
-            self.symbol, start_date, end_date, mt5.COPY_TICKS_ALL)
+            self.symbol, start_date, end_date, mt5.COPY_TICKS_TRADE)
 
         if status != mt5.RES_S_OK:
             logging.warning('No data...')
-            return None
+            return False
 
-        return ticks
+        self.ticks = ticks
 
-    def __is_equal(self, a: pd.Series, b: pd.Series) -> bool:
-        return a['open'] == b['open'] and a['high'] == b['high'] and a['low'] == b['low'] and a['close'] == b['close']
+        if not self.ticks.empty:
+            logging.info('Computing chart...')
+            self.__compute_bars()
 
-    def __orderinfo(self, result):
+        return not self.ticks.empty
+
+    def __isnewbar(self):
+        if len(self.bars) < 1:
+            logging.error('Bars count less than 1...')
+            return False
+
+        current_bar = self.bars.iloc[-1]
+
+        if self.previous_bar.empty:
+            self.previous_bar = current_bar
+            return False
+
+        if current_bar.name == self.previous_bar.name:
+            logging.info('Same bar...')
+            return False
+
+        self.previous_bar = current_bar
+
+        return True
+
+    def __orderdic(self, result):
         result_dict = result._asdict()
-        message = ''
 
         for field in result_dict.keys():
-            message += '   {}={}\n'.format(field, result_dict[field])
-
             if field == "request":
-                traderequest_dict = result_dict[field]._asdict()
-                for tradereq_filed in traderequest_dict:
-                    message += '       traderequest: {}={}\n'.format(
-                        tradereq_filed, traderequest_dict[tradereq_filed])
+                result_dict[field] = result_dict[field]._asdict()
 
-        return message
+        return result_dict
 
-    def __send_order(self, lot: float, side: Side, position: int = None):
-        logging.info('Sending order...')
+    def __getprice(self, side: Side) -> float | None:
+        if self.simulate['online']:
+            if side == Side.BUY:
+                return self.symbol_info.ask
+            elif side == Side.SELL:
+                return self.symbol_info.bid
+            return None
+
+        if side == Side.BUY:
+            for _, p in self.ticks.iloc[::-1].iterrows():
+                if p['ask'] > 0:
+                    return p['ask']
+
+        if side == Side.SELL:
+            for _, p in self.ticks.iloc[::-1].iterrows():
+                if p['bid'] > 0:
+                    return p['bid']
+
+        return None
+
+    def __appendrequest(self, request, request_date):
+        self.requests = pd.concat(
+            [self.requests, pd.DataFrame([request], columns=request.keys(), index=[request_date])])
+
+    def __sendorder(self, lot: float, side: Side, position: int = None) -> dict[any, any]:
+        price = self.__getprice(side)
+
+        if not price:
+            logging.error('Price was not recovered.')
+            return {
+                'retcode': mt5.TRADE_RETCODE_ERROR
+            }
+
+        request_date = datetime.now().replace(tzinfo=pytz.utc)
+
+        if not self.simulate['online']:
+            request_date = self.ticks.iloc[-1].name
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
             "symbol": self.symbol,
             "volume": lot,
-            "type": mt5.ORDER_TYPE_BUY if Side.BUY else mt5.ORDER_TYPE_SELL,
-            "price": self.symbol_info.ask if Side.BUY else self.symbol_info.bid,
+            "type": mt5.ORDER_TYPE_BUY if side == Side.BUY else mt5.ORDER_TYPE_SELL,
+            "price": price,
             "deviation": self.desviation,
             "magic": self.magic,
             "comment": "strategy timeframe",
@@ -130,93 +206,94 @@ class Loop:
             "type_filling": mt5.ORDER_FILLING_RETURN,
         }
 
-        if not position is None:
+        if position:
             request['position'] = position
+
+        if not self.simulate['sendorders']:
+            logging.info(f'Sim order send, {request}')
+
+            self.__appendrequest(request, request_date)
+
+            return {
+                'retcode': mt5.TRADE_RETCODE_DONE
+            }
 
         result = mt5.order_send(request)
 
         if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
             if not result:
                 logging.error(
-                    f'Order send failed, result is None')
+                    f'Order send failed, there was no result.')
             else:
                 logging.error(
-                    f'Order send failed, retcode={result.retcode}, detail\n{self.__orderinfo(result)}')
+                    f'Order send failed, {self.__orderdic(result)}')
 
-        return result
+        self.__appendrequest(request, request_date)
 
-    def __compute_chart(self, ticks):
-        chart = ticks.resample(self.frame)['last'].ohlc()
-        chart['sma_1'] = chart.rolling(5, min_periods=1)['close'].mean()
-        chart['sma_2'] = chart.rolling(5, min_periods=1)['open'].mean()
-        chart['signal'] = chart.apply(self.signal.apply, axis=1)
+        return self.__orderdic(result)
 
-        return chart
+    def __simposition(self):
+        if self.requests.empty:
+            return pd.DataFrame()
+        last_request = self.requests.iloc[-1]
+        if 'position' in last_request.keys() and not math.isnan(last_request['position']):
+            return pd.DataFrame()
 
-    def __is_newcandle(self, chart):
-        if len(chart) < 1:
-            logging.error('Chart size less than 2...')
-            return False
+        simpositions = pd.DataFrame(
+            [last_request], columns=self.requests.columns, index=[last_request.name])
+        simpositions['ticket'] = [random.randint(1, 100000000)]
+        return simpositions
 
-        self.candle = chart.iloc[-1]
+    def __dotrade(self):
+        signal = self.bars.iloc[-1]['signal']
 
-        if self.odd_candle is None:
-            self.odd_candle = self.candle
-            return False
+        status, positions = self.client.get_position(self.symbol)
 
-        if self.__is_equal(self.candle, self.odd_candle):
-            logging.info('Candle is equal...')
-            return False
+        if status != mt5.RES_S_OK:
+            logging.error('Cannot trade, error when searching for position.')
+            return
 
-        return True
-
-    def __trade(self):
-        signal = self.candle['signal']
-
-        _, positions = self.client.get_position(self.symbol)
+        if not self.simulate['sendorders']:
+            logging.info('Simulating positions...')
+            positions = self.__simposition()
 
         if positions.empty:
             if signal == Side.BUY:
                 logging.info('Sending buy order...')
-                self.__send_order(self.lot, Side.BUY)
+                self.__sendorder(self.lot, Side.BUY)
+            else:
+                logging.info('Ignore sell signal...')
 
             return
 
-        logging.info('Has position...')
-
-        position = positions[-1]
+        position = positions.iloc[-1]
 
         if position['type'] == mt5.POSITION_TYPE_BUY and signal == Side.SELL:
-            self.__send_order(position['volume'],
-                              Side.SELL, position['ticket'])
-        elif position['type'] == mt5.POSITION_TYPE_SELL and signal == Side.BUY:
-            self.__send_order(position['volume'],
-                              Side.BUY, position['ticket'])
+            logging.info('Sending close buy order...')
+            self.__sendorder(position['volume'],
+                             Side.SELL, position['ticket'])
+        else:
+            logging.info('Staying in position...')
 
     def exec(self):
         self.client.connect()
 
-        logging.info('Checkin symbol...')
-        if not self.__check_symbol():
+        logging.info('Loading symbol...')
+        if not self.__loadsymbol():
             return
 
-        logging.info('Get ticks...')
-        ticks = self.__ticks()
-        if ticks.empty:
+        logging.info('Loading ticks...')
+        if not self.__loadticks():
             return
 
-        logging.info('Computing chart...')
-        chart = self.__compute_chart(ticks)
-
-        logging.info('Checking new candle...')
-        if not self.__is_newcandle(chart):
+        logging.info('Checking bar...')
+        if not self.__isnewbar():
             return
 
         logging.info('Operating the market...')
-        self.__trade()
-
-        logging.info('Save last candle...')
-        self.odd_candle = self.candle
+        self.__dotrade()
+        print(self.requests)
+        # sleep(1)
 
 
 def main():
@@ -228,19 +305,28 @@ def main():
         ]
     )
 
-    offset = timedelta(minutes=15)
-    sim_startdate = datetime(2022, 3, 23, 9, 40, tzinfo=pytz.utc)
+    sim_startdate = datetime(2022, 3, 24, 9, 2, tzinfo=pytz.utc)
+    #sim_startdate = datetime.now().replace(tzinfo=pytz.utc)
 
     client = MT5Client()
-    loop = Loop(client, offset=offset, sim_startdate=sim_startdate)
+    loop = Loop(client,
+                symbol='WINJ22',
+                lot=1,
+                frame='15s',
+                offset=timedelta(seconds=90),
+                period=5,
+                simulate=dict(simulation=True, startdate=sim_startdate, sendorders=False, online=False))
 
     while True:
         try:
+            logging.info('Running loop...')
             loop.exec()
+            logging.info('Loop executed...')
         except KeyboardInterrupt:
-            raise
-        except Exception as e:
-            logging.error(e)
+            logging.error('Requested stop', exc_info=True)
+            quit()
+        except Exception:
+            logging.error('Unknown error', exc_info=True)
             sleep(1)
 
 

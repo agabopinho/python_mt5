@@ -23,15 +23,16 @@ class SmaSignal:
     def apply(self, item: pd.Series) -> Side:
         self.__state.append(item.copy())
 
-        if len(self.__state) < 4:
+        if len(self.__state) < 2:
             return None
 
+        current = self.__state[-1]
         preivous = self.__state[-2]
 
-        if preivous['sma_1'] > preivous['sma_2']:
+        if preivous['sma_1'] > preivous['sma_2'] and current['close'] > preivous['sma_1'] and current['close'] > preivous['sma_2']:
             return Side.BUY
 
-        if preivous['sma_1'] < preivous['sma_2']:
+        if preivous['sma_1'] < preivous['sma_2'] and current['close'] < preivous['sma_1'] and current['close'] < preivous['sma_2']:
             return Side.SELL
 
         return None
@@ -69,7 +70,7 @@ def main():
     for day in reversed(range(3)):
         date = datetime.now() - timedelta(days=day)
         start_date = datetime(date.year, date.month,
-                              date.day, 9, 10, tzinfo=pytz.utc)
+                              date.day, 9, 0, tzinfo=pytz.utc)
         end_date = datetime(date.year, date.month,
                             date.day, 12, 00, tzinfo=pytz.utc)
 
@@ -107,8 +108,8 @@ def main():
     all_trades['balance'] = all_trades['pips'].cumsum()
     all_trades.to_csv('trades.csv', sep='\t')
 
-    print (all_trades)
-    #plt_balance(all_trades)
+    print(all_trades)
+    # plt_balance(all_trades)
     plt_chart(all_chart, all_trades)
 
 

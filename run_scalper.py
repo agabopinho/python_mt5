@@ -92,13 +92,20 @@ class Loop:
         return True
 
     def __dates(self):
-        end_date = datetime.now().replace(tzinfo=pytz.utc) + timedelta(seconds=10)
+        now = datetime.now().replace(tzinfo=pytz.utc)
+        end_date = now
 
-        if self.__sim_startdate:
+        if self.simulate['simulation']:
             end_date = self.__sim_startdate
             self.__sim_startdate += self.simulate['step']
 
+            if self.__sim_startdate > now:
+                self.__sim_startdate = now
+
         start_date = end_date - self.offset
+
+        if not self.simulate['simulation']:
+            end_date += timedelta(seconds=5)
 
         return start_date, end_date
 
@@ -309,8 +316,8 @@ def main():
         ]
     )
 
-    startdate = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
-    #sim_startdate = datetime.now().replace(tzinfo=pytz.utc)
+    # startdate = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
+    startdate = datetime.now().replace(tzinfo=pytz.utc)
 
     client = MT5Client()
     loop = Loop(client,
@@ -319,12 +326,13 @@ def main():
                 frame='30s',
                 offset=timedelta(seconds=180),
                 period=5,
-                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=1), sendorders=False, online=False))
+                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=1), sendorders=False, online=True))
 
     while True:
         try:
             logging.info('Running loop...')
             loop.exec()
+            sleep(1/2)
             logging.info('Loop executed...')
         except KeyboardInterrupt:
             logging.error('Requested stop', exc_info=True)

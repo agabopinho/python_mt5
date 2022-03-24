@@ -73,7 +73,7 @@ def main():
         start_date = datetime(date.year, date.month,
                               date.day, 9, 0, tzinfo=pytz.utc)
         end_date = datetime(date.year, date.month,
-                            date.day, 17, 30, tzinfo=pytz.utc)
+                            date.day, 17, 55, tzinfo=pytz.utc)
 
         client.connect()
 

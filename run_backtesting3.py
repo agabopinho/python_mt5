@@ -61,7 +61,6 @@ def main():
     )
 
     symbol = 'WINJ22'
-    start_hour = 9
 
     client = MT5Client()
     all_trades = pd.DataFrame()
@@ -70,9 +69,9 @@ def main():
     for day in reversed(range(3)):
         date = datetime.now() - timedelta(days=day)
         start_date = datetime(date.year, date.month,
-                              date.day, start_hour, 30, tzinfo=pytz.utc)
+                              date.day, 9, 10, tzinfo=pytz.utc)
         end_date = datetime(date.year, date.month,
-                            date.day, 12, 20, tzinfo=pytz.utc)
+                            date.day, 12, 00, tzinfo=pytz.utc)
 
         client.connect()
 
@@ -108,7 +107,8 @@ def main():
     all_trades['balance'] = all_trades['pips'].cumsum()
     all_trades.to_csv('trades.csv', sep='\t')
 
-    plt_balance(all_trades)
+    print (all_trades)
+    #plt_balance(all_trades)
     plt_chart(all_chart, all_trades)
 
 

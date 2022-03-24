@@ -1,7 +1,6 @@
 import logging
 import math
 import random
-from cmath import log
 from datetime import datetime, timedelta
 from time import sleep
 
@@ -332,7 +331,7 @@ def main():
         try:
             logging.info('Running loop...')
             loop.exec()
-            sleep(1/2)
+            sleep(1/4)
             logging.info('Loop executed...')
         except KeyboardInterrupt:
             logging.error('Requested stop', exc_info=True)

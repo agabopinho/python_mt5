@@ -18,18 +18,17 @@ class SmaSignal:
         self.__state = []
 
     def apply(self, item: pd.Series) -> Side:
-        self.__state.append(item)
+        self.__state.append(item.copy())
 
         if len(self.__state) < 2:
             return None
 
-        current = self.__state[-1]
-        preivous = self.__state[-2]
+        previous = self.__state[-2]
 
-        if preivous['sma_1'] > preivous['sma_2'] and current['close'] > preivous['sma_1'] and current['close'] > preivous['sma_2']:
+        if previous['sma_1'] > previous['sma_2']:
             return Side.BUY
 
-        if preivous['sma_1'] < preivous['sma_2'] and current['close'] < preivous['sma_1'] and current['close'] < preivous['sma_2']:
+        if previous['sma_1'] < previous['sma_2']:
             return Side.SELL
 
         if len(self.__state) > 2:
@@ -71,6 +70,9 @@ class Loop:
         if not 'online' in self.simulate:
             self.simulate['online'] = False
 
+        if not 'step' in self.simulate:
+            self.simulate['step'] = timedelta(seconds=1)
+
     def __loadsymbol(self) -> bool:
         self.symbol_info = mt5.symbol_info(self.symbol)
 
@@ -94,7 +96,7 @@ class Loop:
 
         if self.__sim_startdate:
             end_date = self.__sim_startdate
-            self.__sim_startdate += timedelta(seconds=1)
+            self.__sim_startdate += self.simulate['step']
 
         start_date = end_date - self.offset
 
@@ -113,7 +115,7 @@ class Loop:
         start_date, end_date = self.__dates()
 
         status, ticks = self.client.get_ticks(
-            self.symbol, start_date, end_date, mt5.COPY_TICKS_TRADE)
+            self.symbol, start_date, end_date, mt5.COPY_TICKS_ALL)
 
         if status != mt5.RES_S_OK:
             logging.warning('No data...')
@@ -155,6 +157,10 @@ class Loop:
 
         return result_dict
 
+    def __appendrequest(self, request, request_date):
+        self.requests = pd.concat(
+            [self.requests, pd.DataFrame([request], columns=request.keys(), index=[request_date])])
+
     def __getprice(self, side: Side) -> float | None:
         if self.simulate['online']:
             if side == Side.BUY:
@@ -165,19 +171,15 @@ class Loop:
 
         if side == Side.BUY:
             for _, p in self.ticks.iloc[::-1].iterrows():
-                if p['ask'] > 0:
+                if p['ask']:
                     return p['ask']
 
         if side == Side.SELL:
             for _, p in self.ticks.iloc[::-1].iterrows():
-                if p['bid'] > 0:
+                if p['bid']:
                     return p['bid']
 
         return None
-
-    def __appendrequest(self, request, request_date):
-        self.requests = pd.concat(
-            [self.requests, pd.DataFrame([request], columns=request.keys(), index=[request_date])])
 
     def __sendorder(self, lot: float, side: Side, position: int = None) -> dict[any, any]:
         price = self.__getprice(side)
@@ -191,7 +193,7 @@ class Loop:
         request_date = datetime.now().replace(tzinfo=pytz.utc)
 
         if not self.simulate['online']:
-            request_date = self.ticks.iloc[-1].name
+            request_date = self.bars.iloc[-1].name
 
         request = {
             "action": mt5.TRADE_ACTION_DEAL,
@@ -292,8 +294,10 @@ class Loop:
 
         logging.info('Operating the market...')
         self.__dotrade()
-        print(self.requests)
-        # sleep(1)
+
+        if not self.simulate['sendorders']:
+            logging.info('Generating trades file...')
+            self.requests.to_csv('simulation-trades.csv', sep='\t')
 
 
 def main():
@@ -305,17 +309,17 @@ def main():
         ]
     )
 
-    sim_startdate = datetime(2022, 3, 24, 9, 2, tzinfo=pytz.utc)
+    startdate = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
     #sim_startdate = datetime.now().replace(tzinfo=pytz.utc)
 
     client = MT5Client()
     loop = Loop(client,
                 symbol='WINJ22',
                 lot=1,
-                frame='15s',
-                offset=timedelta(seconds=90),
+                frame='30s',
+                offset=timedelta(seconds=180),
                 period=5,
-                simulate=dict(simulation=True, startdate=sim_startdate, sendorders=False, online=False))
+                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=1), sendorders=False, online=False))
 
     while True:
         try:

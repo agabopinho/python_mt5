@@ -15,7 +15,7 @@ class TradingSimulate:
         self.book_transactions = []
         self.columns = columns
 
-    def compute(self, data: pd.DataFrame, signal: Callable[[pd.Series], Side], take_stop: tuple[float, float] = (float, float)):
+    def compute(self, data: pd.DataFrame, signal: Callable[[pd.Series], Side], risk: tuple[float, float, float] = (float, float)):
         logging.info('Computing signals...')
 
         data['signal'] = data.apply(signal, axis=1)
@@ -26,7 +26,7 @@ class TradingSimulate:
 
         for index, row in data.iterrows():
             transaction = self.__check_close(
-                transaction, index, row, take_stop)
+                transaction, index, row, risk)
 
             if transaction is None:
                 transaction = self.__check_open(index, row)
@@ -39,18 +39,24 @@ class TradingSimulate:
             book_price = row[bid] if transaction.side == Side.BUY else row[ask]
             transaction.close(index, book_price)
 
-    def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, take_stop: tuple[float, float] = (float, float)) -> Transaction:
+    def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, risk: tuple[float, float, float] = (float, float)) -> Transaction:
         bid, ask = self.columns
         if transaction:
             book_price = row[bid] if transaction.side == Side.BUY else row[ask]
             transaction.compute(book_price)
 
-            if take_stop:
-                take, stop = take_stop
-                if not stop is None and transaction.pips <= -stop:
+            if risk:
+                takepips, stoppips, trailingstoppips = risk
+
+                if takepips and transaction.pips >= abs(takepips):
                     transaction.close(index, book_price)
                     return None
-                if not take is None and transaction.pips >= take:
+
+                if stoppips and transaction.pips <= -abs(stoppips):
+                    transaction.close(index, book_price)
+                    return None
+
+                if trailingstoppips and transaction.max_pips > trailingstoppips and transaction.max_pips - transaction.pips >= abs(trailingstoppips):
                     transaction.close(index, book_price)
                     return None
 
@@ -72,15 +78,17 @@ class TradingSimulate:
         return None
 
     def to_dataframe(self):
+        data = [item.todict() for item in self.transactions]
+
+        if not data:
+            return pd.DataFrame()
+
         df = pd.DataFrame(
-            data=[item.to_item_list() for item in self.transactions],
-            columns=[
-                'side', 'entry_time', 'entry_price',
-                'exit_price', 'exit_time', 'operating_time',
-                'pips', 'is_open'])
+            data=data,
+            columns=data[0].keys())
 
         df.index = df['entry_time']
-        df.drop(columns=['entry_time'])
+        df.drop(columns=['entry_time'], inplace=True)
 
         df['balance'] = df['pips'].cumsum()
 

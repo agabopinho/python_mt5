@@ -43,16 +43,16 @@ def main():
     slippage = 5
 
     client = MT5Client()
-    
+
     for frame in [60]:
         all_trades = pd.DataFrame()
         all_chart = pd.DataFrame()
         frame = f'{frame}s'
-        
+
         for day in reversed(range(5)):
             date = datetime.now() - timedelta(days=day)
             start_date = datetime(date.year, date.month,
-                                date.day, 9, 0, tzinfo=pytz.utc)
+                                  date.day, 9, 0, tzinfo=pytz.utc)
             end_date = datetime(date.year, date.month,
                                 date.day, 17, 20, tzinfo=pytz.utc)
 
@@ -95,18 +95,11 @@ def main():
                     # fechamento de compra
                     if lasttrade.side == Side.BUY and bar['low'] < previous['low']:
                         lasttrade.close(i, previous['low'], slippage=slippage)
-                    # fechamento de venda
-                    elif lasttrade.side == Side.SELL and bar['high'] > previous['high']:
-                        lasttrade.close(i, previous['high'], slippage=slippage)
-                    
+
                     continue
 
                 # rompeu max e min e fechou a cima da max
                 if bar['high'] > previous['high'] and bar['low'] < previous['low'] and bar['close'] > previous['high']:
-                    t1 = Transaction(
-                        Side.SELL, i, previous['low'])
-                    t1.close(i, previous['high'], slippage=slippage)
-                    trades.append(t1)
                     trades.append(Transaction(
                         Side.BUY, i, previous['high']))
                     continue
@@ -117,18 +110,11 @@ def main():
                         Side.BUY, i, previous['high'])
                     t1.close(i, previous['low'], slippage=slippage)
                     trades.append(t1)
-                    trades.append(Transaction(
-                        Side.SELL, i, previous['low']))
                     continue
 
                 elif bar['high'] > previous['high']:
                     trades.append(Transaction(
                         Side.BUY, i, previous['high']))
-                    continue
-
-                elif bar['low'] < previous['low']:
-                    trades.append(Transaction(
-                        Side.SELL, i, previous['low']))
                     continue
 
             lasttrade = trades[-1] if trades else None
@@ -138,7 +124,6 @@ def main():
             all_trades = pd.concat([all_trades, trades_todataframe(trades)])
             all_chart = pd.concat([all_chart, chart])
 
-        # all_trades = all_trades[all_trades['side'] == Side.BUY]
         all_trades['balance'] = all_trades['pips'].cumsum()
         all_trades.to_csv(f'backtesting-trades.csv', sep='\t')
 

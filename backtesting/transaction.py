@@ -4,10 +4,11 @@ from strategy import Side
 
 
 class Transaction:
-    def __init__(self, side: Side, entry_time: datetime, entry_price: float):
+    def __init__(self, side: Side, entry_time: datetime, entry_price: float, slippage: float = 0):
         self.side = side
         self.entry_time = entry_time
-        self.entry_price = entry_price
+        self.entry_price = entry_price + \
+            slippage if side == Side.BUY else entry_price - slippage
         self.exit_price = float(0)
         self.exit_time = datetime.min
         self.operating_time = timedelta(seconds=0)
@@ -16,12 +17,16 @@ class Transaction:
         self.max_pips = float(0)
         self.is_open = True
 
-    def close(self, exit_time: datetime, exit_price: float):
+    def close(self, exit_time: datetime, exit_price: float, slippage: float = 0):
+        if not self.is_open:
+            raise Exception('Transaction is closed.')
+
         self.exit_time = exit_time
-        self.exit_price = exit_price
+        self.exit_price = exit_price + \
+            slippage if self.side == Side.SELL else exit_price - slippage
         self.operating_time = exit_time - self.entry_time
 
-        self.compute(exit_price)
+        self.compute(self.exit_price)
 
         self.is_open = False
 

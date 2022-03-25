@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime, timedelta
-from pprint import pformat
 
 import MetaTrader5 as mt5
 import pandas as pd
@@ -49,7 +48,7 @@ def main():
         all_chart = pd.DataFrame()
         frame = f'{frame}s'
 
-        for day in reversed(range(5)):
+        for day in reversed(range(1)):
             date = datetime.now() - timedelta(days=day)
             start_date = datetime(date.year, date.month,
                                   date.day, 9, 0, tzinfo=pytz.utc)

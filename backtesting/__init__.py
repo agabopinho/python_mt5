@@ -35,6 +35,7 @@ def pltbalance(trades: pd.DataFrame):
     df['high'] = trades['balance'] 
     df['low'] = trades['balance'] 
     df['close'] = trades['balance'] 
+    df.index = trades.index
     
     mpf.plot(df, type='line', title='Data', style='classic')
 

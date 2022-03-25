@@ -12,7 +12,7 @@ from strategy import Side
 from strategy.mt5_client import MT5Client
 
 
-class SmaSignal:
+class Signal:
     def __init__(self):
         self.__state = []
 
@@ -113,7 +113,7 @@ class Loop:
         bars = self.ticks.resample(self.frame)['last'].ohlc()
         bars['sma_1'] = bars.rolling(p, min_periods=1)['close'].mean()
         bars['sma_2'] = bars.rolling(p, min_periods=1)['open'].mean()
-        bars['signal'] = bars.apply(SmaSignal().apply, axis=1)
+        bars['signal'] = bars.apply(Signal().apply, axis=1)
 
         self.bars = bars
 

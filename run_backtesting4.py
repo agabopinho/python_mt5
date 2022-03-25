@@ -40,7 +40,7 @@ def main():
     )
 
     symbol = 'WINJ22'
-    slippage = 5
+    slippage = 0
 
     client = MT5Client()
     

@@ -15,7 +15,7 @@ class TradingSimulate:
         self.book_transactions = []
         self.columns = columns
 
-    def compute(self, data: pd.DataFrame, signal: Callable[[pd.Series], Side], risk: tuple[float, float, float] = (float, float)):
+    def compute(self, data: pd.DataFrame, signal: Callable[[pd.Series], Side], risk: tuple[float, float, float] = None):
         logging.info('Computing signals...')
 
         data['signal'] = data.apply(signal, axis=1)
@@ -39,7 +39,7 @@ class TradingSimulate:
             book_price = row[bid] if transaction.side == Side.BUY else row[ask]
             transaction.close(index, book_price)
 
-    def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, risk: tuple[float, float, float] = (float, float)) -> Transaction:
+    def __check_close(self, transaction: Transaction, index: datetime, row: pd.Series, risk: tuple[float, float, float]) -> Transaction:
         bid, ask = self.columns
         if transaction:
             book_price = row[bid] if transaction.side == Side.BUY else row[ask]

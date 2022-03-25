@@ -52,7 +52,8 @@ def plt_balance(trades: pd.DataFrame):
 
     fig = plt.figure()
     plt.plot(trades.index, trades['balance'], 'y-', label='Balance')
-
+    plt.gcf().autofmt_xdate()
+    
     plt.legend(loc='upper left')
     plt.title(f'Info')
 

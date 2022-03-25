@@ -315,8 +315,8 @@ def main():
         ]
     )
 
-    # startdate = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
-    startdate = datetime.now().replace(tzinfo=pytz.utc)
+    startdate = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
+    # startdate = datetime.now().replace(tzinfo=pytz.utc)
 
     client = MT5Client()
     loop = Loop(client,

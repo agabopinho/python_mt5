@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 
 import MetaTrader5 as mt5
+from matplotlib import pyplot as plt
 import mplfinance as mpf
 import pandas as pd
 import pytz
@@ -13,6 +14,8 @@ from strategy import Side
 from strategy.mt5_client import MT5Client
 
 register_matplotlib_converters()
+
+plt.rcParams["figure.autolayout"] = True
 
 
 class SmaSignal:
@@ -32,7 +35,7 @@ class SmaSignal:
         
         if previous['sma_1'] < previous['sma_2']:
             return Side.SELL
-        
+
         if len(self.__state) > 2:
             self.__state = self.__state[-2:]
 
@@ -68,17 +71,17 @@ def main():
     all_trades = pd.DataFrame()
     all_chart = pd.DataFrame()
 
-    for day in reversed(range(1)):
+    for day in reversed(range(3)):
         date = datetime.now() - timedelta(days=day)
         start_date = datetime(date.year, date.month,
                               date.day, 9, 0, tzinfo=pytz.utc)
         end_date = datetime(date.year, date.month,
-                            date.day, 17, 55, tzinfo=pytz.utc)
+                            date.day, 17, 20, tzinfo=pytz.utc)
 
         client.connect()
 
         status, ticks = client.get_ticks(
-            symbol, start_date, end_date, mt5.COPY_TICKS_TRADE)
+            symbol, start_date, end_date, mt5.COPY_TICKS_ALL)
 
         if status != mt5.RES_S_OK:
             client.disconnect()

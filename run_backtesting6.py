@@ -39,7 +39,7 @@ def main():
     )
 
     symbol = 'WINJ22'
-    slippage = 0
+    slippage = 5
 
     client = MT5Client()
 
@@ -48,7 +48,7 @@ def main():
         all_chart = pd.DataFrame()
         frame = f'{frame}s'
 
-        for day in reversed(range(1)):
+        for day in reversed(range(5)):
             date = datetime.now() - timedelta(days=day)
             start_date = datetime(date.year, date.month,
                                   date.day, 9, 0, tzinfo=pytz.utc)
@@ -93,27 +93,27 @@ def main():
                 if lasttrade and lasttrade.is_open:
                     # fechamento de compra
                     if lasttrade.side == Side.BUY and bar['low'] < previous['low']:
-                        lasttrade.close(i, previous['low'], slippage=slippage)
+                        lasttrade.close(i, previous['low'], slippage)
 
                     continue
 
                 # rompeu max e min e fechou a cima da max
                 if bar['high'] > previous['high'] and bar['low'] < previous['low'] and bar['close'] > previous['high']:
                     trades.append(Transaction(
-                        Side.BUY, i, previous['high']))
+                        Side.BUY, i, previous['high'], slippage))
                     continue
 
                 # rompeu max e min e fechou a baixo da min
                 elif bar['high'] > previous['high'] and bar['low'] < previous['low'] and bar['close'] < previous['low']:
                     t1 = Transaction(
-                        Side.BUY, i, previous['high'])
-                    t1.close(i, previous['low'], slippage=slippage)
+                        Side.BUY, i, previous['high'], slippage)
+                    t1.close(i, previous['low'], slippage)
                     trades.append(t1)
                     continue
 
                 elif bar['high'] > previous['high']:
                     trades.append(Transaction(
-                        Side.BUY, i, previous['high']))
+                        Side.BUY, i, previous['high'], slippage))
                     continue
 
             lasttrade = trades[-1] if trades else None

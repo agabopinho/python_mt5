@@ -42,19 +42,25 @@ def pltbalance(trades: pd.DataFrame):
 
 def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None):
     alines = []
-    for index, trade in trades.iterrows():
-        open = (index, trade['entry_price'])
-        close = (trade['exit_time'], trade['exit_price'])
+    
+    if type(trades) == pd.DataFrame and not trades.empty:
+        for index, trade in trades.iterrows():
+            open = (index, trade['entry_price'])
+            close = (trade['exit_time'], trade['exit_price'])
 
-        alines.append([open, close])
+            alines.append([open, close])
 
     c = []
     if 'sma_1' in data.columns: 
         c.append('sma_1')
     if 'sma_2' in data.columns: 
         c.append('sma_2')
+    if 'bolu' in data.columns: 
+        c.append('bolu')
+    if 'bold' in data.columns: 
+        c.append('bold')
     
     addplot = mpf.make_addplot(data[c]) if c else []
 
     mpf.plot(data, type='candle', title='Data', style='classic',
-             alines=dict(alines=alines, colors=['b', 'r', 'c', 'k', 'g']), addplot=addplot)
+             alines=dict(alines=alines, colors=['b', 'r', 'c', 'k', 'g']), addplot=addplot, show_nontrading=False)

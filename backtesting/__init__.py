@@ -50,17 +50,23 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None):
 
             alines.append([open, close])
 
-    c = []
-    if 'sma_1' in data.columns: 
-        c.append('sma_1')
-    if 'sma_2' in data.columns: 
-        c.append('sma_2')
-    if 'bolu' in data.columns: 
-        c.append('bolu')
-    if 'bold' in data.columns: 
-        c.append('bold')
+    addplot = []
     
-    addplot = mpf.make_addplot(data[c]) if c else []
+    columns = []
+    if 'sma_1' in data.columns: 
+        columns.append('sma_1')
+    if 'sma_2' in data.columns: 
+        columns.append('sma_2')
+    if 'bolu' in data.columns: 
+        columns.append('bolu')
+    if 'bold' in data.columns: 
+        columns.append('bold')
+    
+    if columns: 
+        addplot.append(mpf.make_addplot(data[columns]))
+        
+    if 'rsi' in data.columns: 
+        addplot.append(mpf.make_addplot(data[['rsi', 'rsi_up', 'rsi_down']], panel=1))
 
     mpf.plot(data, type='candle', title='Data', style='classic',
              alines=dict(alines=alines, colors=['b', 'r', 'c', 'k', 'g']), addplot=addplot, show_nontrading=False)

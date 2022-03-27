@@ -1,13 +1,12 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import MetaTrader5 as mt5
-from matplotlib import pyplot as plt
-from numpy import char
 import pandas as pd
 import pytz
-from backtesting import pltchart
+import ta
 
+from backtesting import pltchart
 from backtesting.transaction import Transaction
 from strategy.mt5_client import MT5Client
 
@@ -40,12 +39,11 @@ def main():
     )
 
     symbol = 'WINJ22'
+    frame = '1min'
     
     client = MT5Client()
 
-    frame = '1min'
-    
-    start_date = datetime(2022, 3, 25, 9, 0, tzinfo=pytz.utc)
+    start_date = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
     end_date = datetime(2022, 3, 25, 17, 20, tzinfo=pytz.utc)
 
     client.connect()
@@ -60,14 +58,18 @@ def main():
     client.disconnect()
 
     logging.info('Computing...')
-
+    
     chart = ticks.resample(frame)['last'].ohlc()
-    chart['sma_1'] = chart.rolling(10, min_periods=1)['close'].mean()
-    chart['std'] = chart.rolling(10, min_periods=1)['close'].std()
-    chart['bolu'] = chart['sma_1'] + 2 * chart['std']
-    chart['bold'] = chart['sma_1'] - 2 * chart['std']
+    chart.dropna(inplace=True)
+    
+    bb = ta.volatility.BollingerBands(close=chart['close'], window=10, window_dev=2)
+    rsi = ta.momentum.RSIIndicator(close=chart['close'], window=14)
 
-    logging.info('Trading simulate...')
+    chart['bolu'] = bb.bollinger_hband()
+    chart['bold'] = bb.bollinger_lband()    
+    chart['rsi'] = rsi.rsi()
+    chart['rsi_up'] = 70
+    chart['rsi_down'] = 30
 
     pltchart(chart)
 

@@ -120,16 +120,15 @@ class Loop:
         bars = self.ticks.resample(self.frame)['last'].ohlc()
         bars.dropna(inplace=True)
 
-        rsi = ta.momentum.RSIIndicator((bars['open'] + bars['close']) / 2, window=self.window)
+        rsi = ta.momentum.RSIIndicator(
+            (bars['high'] + bars['low'] + bars['close']) / 3, window=self.window)
 
         bars['rsi'] = rsi.rsi()
         bars['rsi_up'] = 70
         bars['rsi_down'] = 30
 
-        bars['buy'] = np.where(
-            (bars['rsi'].shift(1) > bars['rsi_up'].shift(1)), True, False)
-        bars['sell'] = np.where(
-            (bars['rsi'].shift(1) < bars['rsi_down'].shift(1)), True, False)
+        bars['buy'] = np.where(bars['rsi'].shift(1) > bars['rsi_up'].shift(1), True, False)
+        bars['sell'] = np.where(bars['rsi'].shift(1) < bars['rsi_down'].shift(1), True, False)
 
         self.bars = bars
 
@@ -333,8 +332,6 @@ class Loop:
         if self.simulate['simulation']:
             logging.info('Generating trades file...')
             self.__requeststocsv()
-        else:
-            sleep(1/4)
 
 
 def main():
@@ -346,15 +343,15 @@ def main():
         ]
     )
 
-    startdate = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
+    startdate = datetime(2022, 3, 28, 10, 0, tzinfo=pytz.utc)
 
     loop = Loop(MT5Client(),
-                symbol='WINJ22',
+                symbol='PETR4',
                 lot=1,
-                frame='20s',
+                frame='10s',
                 window=5,
-                offset=timedelta(minutes=180),
-                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=5)))
+                offset=timedelta(minutes=60),
+                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=2)))
 
     while True:
         try:

@@ -9,6 +9,7 @@ import ta
 
 from backtesting import pltbalance, pltchart
 from backtesting.transaction import Transaction
+from run_backtesting8 import simplifyorders
 from strategy import Side
 from strategy.mt5_client import MT5Client
 
@@ -40,22 +41,22 @@ def main():
         ]
     )
 
-    symbol = 'WIN$'
+    symbol = 'PETR4'
     slippage = 0
 
     client = MT5Client()
 
-    for frame in [20]:
+    for f in [10]:
         all_trades = pd.DataFrame()
         all_chart = pd.DataFrame()
-        frame = f'{frame}s'
+        frame = f'{f}s'
 
-        for day in reversed(range(8)):
+        for day in reversed(range(10)):
             date = datetime.now() - timedelta(days=day)
             start_date = datetime(date.year, date.month,
-                                  date.day, 9, 0, tzinfo=pytz.utc)
+                                  date.day, 10, 0, tzinfo=pytz.utc)
             end_date = datetime(date.year, date.month,
-                                date.day, 17, 20, tzinfo=pytz.utc)
+                                date.day, 16, 20, tzinfo=pytz.utc)
 
             client.connect()
 
@@ -77,16 +78,18 @@ def main():
             chart.dropna(inplace=True)
 
             ind = ta.momentum.RSIIndicator(
-                (chart['open'] + chart['close']) / 2, window=5)
+                (chart['high'] + chart['low'] + chart['close']) / 3, window=5)
 
             chart['rsi'] = ind.rsi()
             chart['rsi_up'] = 70
             chart['rsi_down'] = 30
 
             chart['buy'] = np.where(
-                (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
-            chart['sell'] = np.where(
                 (chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
+            chart['sell'] = np.where(
+                (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
+
+            simplifyorders(chart)
 
             logging.info('Trading simulate...')
 
@@ -100,8 +103,6 @@ def main():
                     continue
                 else:
                     histbar = histbar[-3:]
-
-                previous = histbar[-2]
 
                 lasttrade = trades[-1] if trades else None
 

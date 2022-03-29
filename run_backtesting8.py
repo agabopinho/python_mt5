@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 
 import MetaTrader5 as mt5
+import numpy as np
 import pandas as pd
 import pytz
 import ta
@@ -29,6 +30,58 @@ def trades_todataframe(trades: list[Transaction]):
     return df
 
 
+def simplifyorders(chart: pd.DataFrame):
+    buy = []
+    sell = []
+
+    is_buy = False
+    is_sell = False
+
+    for _, r in chart.iterrows():
+        if r['buy'] and not is_buy:
+            is_buy = True
+            is_sell = False
+            buy.append(True)
+            sell.append(False)
+
+            continue
+        elif r['sell'] and not is_sell:
+            is_sell = True
+            is_buy = False
+            sell.append(True)
+            buy.append(False)
+
+            continue
+
+        buy.append(False)
+        sell.append(False)
+
+    chart['buy'] = buy
+    chart['sell'] = sell
+
+
+def sumprofit(chart: pd.DataFrame):
+    price = 0
+    sum = 0
+
+    for _, r in chart.iterrows():
+        if not price:
+            if r['buy'] or r['sell']:
+                price = r['open']
+
+            continue
+
+        if r['buy']:
+            sum += price - r['open']
+            price = r['open']
+
+        if r['sell']:
+            sum += r['open'] - price
+            price = r['open']
+
+    logging.info('Profit {}pips'.format(sum))
+
+
 def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -38,13 +91,13 @@ def main():
         ]
     )
 
-    symbol = 'WINJ22'
-    frame = '1min'
-    
+    symbol = 'WIN$'
+    frame = '20s'
+
     client = MT5Client()
 
-    start_date = datetime(2022, 3, 24, 9, 0, tzinfo=pytz.utc)
-    end_date = datetime(2022, 3, 25, 17, 20, tzinfo=pytz.utc)
+    start_date = datetime(2022, 3, 21, 9, 0, tzinfo=pytz.utc)
+    end_date = datetime(2022, 3, 28, 17, 20, 0, tzinfo=pytz.utc)
 
     client.connect()
 
@@ -58,18 +111,21 @@ def main():
     client.disconnect()
 
     logging.info('Computing...')
-    
+
     chart = ticks.resample(frame)['last'].ohlc()
     chart.dropna(inplace=True)
-    
-    bb = ta.volatility.BollingerBands(close=chart['close'], window=10, window_dev=2)
-    rsi = ta.momentum.RSIIndicator(close=chart['close'], window=14)
 
-    chart['bolu'] = bb.bollinger_hband()
-    chart['bold'] = bb.bollinger_lband()    
-    chart['rsi'] = rsi.rsi()
+    ind = ta.momentum.RSIIndicator((chart['open'] + chart['close']) / 2, window=5)
+
+    chart['rsi'] = ind.rsi()
     chart['rsi_up'] = 70
     chart['rsi_down'] = 30
+
+    chart['buy'] = np.where((chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
+    chart['sell'] = np.where((chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
+
+    simplifyorders(chart)
+    sumprofit(chart)
 
     pltchart(chart)
 

@@ -117,20 +117,22 @@ class Loop:
         return start_date, end_date
 
     def __computebars(self):
-        bars = self.ticks.resample(self.frame)['last'].ohlc()
-        bars.dropna(inplace=True)
+        chart = self.ticks.resample(self.frame)['last'].ohlc()
+        chart.dropna(inplace=True)
 
         rsi = ta.momentum.RSIIndicator(
-            (bars['high'] + bars['low'] + bars['close']) / 3, window=self.window)
+            (chart['high'] + chart['low'] + chart['close']) / 3, window=5)
 
-        bars['rsi'] = rsi.rsi()
-        bars['rsi_up'] = 70
-        bars['rsi_down'] = 30
+        chart['rsi'] = rsi.rsi()
+        chart['rsi_up'] = 70
+        chart['rsi_down'] = 30
 
-        bars['buy'] = np.where(bars['rsi'].shift(1) > bars['rsi_up'].shift(1), True, False)
-        bars['sell'] = np.where(bars['rsi'].shift(1) < bars['rsi_down'].shift(1), True, False)
+        chart['buy'] = np.where(
+            (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
+        chart['sell'] = np.where(
+            (chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
 
-        self.bars = bars
+        self.bars = chart
 
     def __loadticks(self) -> bool:
         startdate, enddate = self.__dates()
@@ -343,15 +345,15 @@ def main():
         ]
     )
 
-    startdate = datetime(2022, 3, 28, 10, 0, tzinfo=pytz.utc)
+    startdate = datetime(2022, 3, 28, 9, 0, tzinfo=pytz.utc)
 
     loop = Loop(MT5Client(),
-                symbol='PETR4',
+                symbol='WIN$',
                 lot=1,
-                frame='10s',
+                frame='20s',
                 window=5,
                 offset=timedelta(minutes=60),
-                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=2)))
+                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=1)))
 
     while True:
         try:

@@ -41,12 +41,12 @@ def main():
         ]
     )
 
-    symbol = 'PETR4'
+    symbol = 'WIN$'
     slippage = 0
 
     client = MT5Client()
 
-    for f in [10]:
+    for f in [20]:
         all_trades = pd.DataFrame()
         all_chart = pd.DataFrame()
         frame = f'{f}s'
@@ -54,9 +54,9 @@ def main():
         for day in reversed(range(10)):
             date = datetime.now() - timedelta(days=day)
             start_date = datetime(date.year, date.month,
-                                  date.day, 10, 0, tzinfo=pytz.utc)
+                                  date.day, 9, 0, tzinfo=pytz.utc)
             end_date = datetime(date.year, date.month,
-                                date.day, 16, 20, tzinfo=pytz.utc)
+                                date.day, 17, 20, tzinfo=pytz.utc)
 
             client.connect()
 
@@ -77,17 +77,17 @@ def main():
             chart = ticks.resample(frame)['last'].ohlc()
             chart.dropna(inplace=True)
 
-            ind = ta.momentum.RSIIndicator(
+            rsi = ta.momentum.RSIIndicator(
                 (chart['high'] + chart['low'] + chart['close']) / 3, window=5)
 
-            chart['rsi'] = ind.rsi()
+            chart['rsi'] = rsi.rsi()
             chart['rsi_up'] = 70
             chart['rsi_down'] = 30
 
             chart['buy'] = np.where(
-                (chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
-            chart['sell'] = np.where(
                 (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
+            chart['sell'] = np.where(
+                (chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
 
             simplifyorders(chart)
 

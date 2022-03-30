@@ -1,6 +1,6 @@
 input
-  Fast(100);
-  Slow(400);
+  Fast(75);
+  Slow(200);
 var
   ifr_fast : Float;
   ifr_slow : Float;
@@ -16,8 +16,3 @@ begin
   else 
     PaintBar(ClWhite);
 end;
-
-
-
-
-

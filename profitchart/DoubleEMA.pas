@@ -1,6 +1,6 @@
 input
-  Fast(50);
-  Slow(100);
+  Fast(14);
+  Slow(50);
 var
   ema_fast : Float;
   ema_slow : Float;

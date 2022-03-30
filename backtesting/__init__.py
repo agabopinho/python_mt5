@@ -41,7 +41,7 @@ def pltbalance(trades: pd.DataFrame):
     mpf.plot(df, type='line', title='Data', style='classic')
 
 
-def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None):
+def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None, price='open', mav=()):
     alines = []
 
     if type(trades) == pd.DataFrame and not trades.empty:
@@ -62,6 +62,8 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None):
         columns.append('bolu')
     if 'bold' in data.columns:
         columns.append('bold')
+    if 'ema' in data.columns:
+        columns.append('ema')
 
     if columns:
         addplot.append(mpf.make_addplot(data[columns]))
@@ -69,14 +71,22 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None):
     if 'rsi' in data.columns:
         addplot.append(mpf.make_addplot(
             data[['rsi', 'rsi_up', 'rsi_down']], panel=1))
+        
+    if 'rsifast' in data.columns:
+        addplot.append(mpf.make_addplot(
+            data[['rsifast', 'rsislow']], panel=1))
+
+    if 'adx' in data.columns:
+        addplot.append(mpf.make_addplot(
+            data[['adx_pos', 'adx_neg']], panel=1))
 
     if 'buy' in data.columns and not data[data['buy']].empty:
         addplot.append(mpf.make_addplot(np.where(
-            data['buy'], data['open'], np.nan), type='scatter', markersize=200, marker='^'))
-        
+            data['buy'], data[price], np.nan), type='scatter', markersize=200, marker='^'))
+
     if 'sell' in data.columns and not data[data['sell']].empty:
         addplot.append(mpf.make_addplot(np.where(
-            data['sell'], data['open'], np.nan), type='scatter', markersize=200, marker='v'))
+            data['sell'], data[price], np.nan), type='scatter', markersize=200, marker='v'))
 
-    mpf.plot(data, type='candle', title='Data', style='classic',
+    mpf.plot(data, mav=mav, type='candle', title='Data', style='classic',
              alines=dict(alines=alines, colors=['b', 'r', 'c', 'k', 'g']), addplot=addplot, show_nontrading=False)

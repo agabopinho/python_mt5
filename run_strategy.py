@@ -124,8 +124,8 @@ class Loop:
             (chart['high'] + chart['low'] + chart['close']) / 3, window=5)
 
         chart['rsi'] = rsi.rsi()
-        chart['rsi_up'] = 70
-        chart['rsi_down'] = 30
+        chart['rsi_up'] = 50
+        chart['rsi_down'] = 50
 
         chart['buy'] = np.where(
             (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
@@ -350,7 +350,7 @@ def main():
     loop = Loop(MT5Client(),
                 symbol='WIN$',
                 lot=1,
-                frame='20s',
+                frame='30s',
                 window=5,
                 offset=timedelta(minutes=60),
                 simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=1)))

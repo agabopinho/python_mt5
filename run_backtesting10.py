@@ -14,6 +14,22 @@ from strategy import Side
 from strategy.mt5_client import MT5Client
 
 
+def HA(df):
+    df['original_open'] = df['open']
+    df['close'] = (df['open'] + df['high'] + df['low']+df['close'])/4
+
+    for i in range(0, len(df)):
+        if i == 0:
+            df['open'][i] = ((df['open'][i] + df['close'][i]) / 2)
+        else:
+            df['open'][i] = ((df['open'][i-1] + df['close'][i-1]) / 2)
+
+    df['high'] = df[['open', 'close', 'high']].max(axis=1)
+    df['low'] = df[['open', 'close', 'low']].min(axis=1)
+
+    return df[['open', 'close', 'high', 'low', 'original_open']]
+
+
 def trades_todataframe(trades: list[Transaction]):
     data = [item.todict() for item in trades]
 
@@ -46,12 +62,12 @@ def main():
 
     client = MT5Client()
 
-    for f in [30]:
-        all_trades = pd.DataFrame()
+    for f in [60]:
         all_chart = pd.DataFrame()
+        all_trades = pd.DataFrame()
         frame = f'{f}s'
 
-        for day in reversed(range(10)):
+        for day in reversed(range(1)):
             date = datetime.now() - timedelta(days=day)
             start_date = datetime(date.year, date.month,
                                   date.day, 9, 0, tzinfo=pytz.utc)
@@ -77,27 +93,20 @@ def main():
             chart = ticks.resample(frame)['last'].ohlc()
             chart.dropna(inplace=True)
 
-            rsi = ta.momentum.rsi(
-                (chart['high'] + chart['low'] + chart['close']) / 3, window=5)
-            stock = ta.momentum.stoch(
-                chart['high'], chart['low'], chart['close'], window=5)
+            chart = HA(chart)
+
+            rsi = ta.momentum.rsi(chart['close'], window=5)
 
             chart['rsi'] = rsi
-            chart['rsi_up'] = 60
-            chart['rsi_down'] = 40
-
-            chart['stock'] = stock
-            chart['stock_up'] = 50
-            chart['stock_down'] = 50
+            chart['rsi_up'] = 70
+            chart['rsi_down'] = 30
 
             chart['buy'] = np.where(
-                (chart['rsi'].shift(1) > chart['rsi_down'].shift(1)), True, False)
+                (chart['rsi'].shift(1) > 60), True, False)
             chart['sell'] = np.where(
-                (chart['rsi'].shift(1) < chart['rsi_up'].shift(1)), True, False)
+                (chart['rsi'].shift(1) < 40), True, False)
 
             simplifyorders(chart)
-
-            logging.info('Trading simulate...')
 
             trades = []
             histbar = []
@@ -114,7 +123,8 @@ def main():
 
                 issell = bar['sell']
                 isbuy = bar['buy']
-                price = 'open'
+
+                price = 'original_open'
 
                 if lasttrade and lasttrade.is_open:
                     if lasttrade.side == Side.BUY and issell:
@@ -145,7 +155,7 @@ def main():
         all_trades.to_csv(f'backtesting-trades.csv', sep='\t')
 
         pltbalance(all_trades)
-        pltchart(all_chart, all_trades)
+        pltchart(all_chart, all_trades, price='original_open')
 
 
 if __name__ == "__main__":

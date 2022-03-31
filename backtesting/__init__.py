@@ -64,6 +64,9 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None, price='open', mav=
         columns.append('bold')
     if 'ema' in data.columns:
         columns.append('ema')
+    if 'psarup' in data.columns:
+        columns.append('psarup')
+        columns.append('psardown')
 
     if columns:
         addplot.append(mpf.make_addplot(data[columns]))
@@ -79,7 +82,11 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None, price='open', mav=
     if 'adx' in data.columns:
         addplot.append(mpf.make_addplot(
             data[['adx_pos', 'adx_neg']], panel=1))
-
+    
+    if 'cci' in data.columns:
+        addplot.append(mpf.make_addplot(
+            data[['cci']], panel=2))
+        
     if 'buy' in data.columns and not data[data['buy']].empty:
         addplot.append(mpf.make_addplot(np.where(
             data['buy'], data[price], np.nan), type='scatter', markersize=200, marker='^'))

@@ -33,7 +33,7 @@ class Loop:
         self.bars = pd.DataFrame()
         self.requests = pd.DataFrame()
 
-        self.__sim_startdate = None
+        self._sim_startdate = None
 
         if type(self.simulate) != dict:
             raise Exception('Invalid arg: simulate.')
@@ -45,12 +45,12 @@ class Loop:
             if not 'startdate' in self.simulate or type(self.simulate['startdate']) != datetime or self.simulate['startdate'].tzinfo != pytz.utc:
                 raise Exception('Invalid arg: simulate.startdate.')
 
-            self.__sim_startdate = self.simulate['startdate']
+            self._sim_startdate = self.simulate['startdate']
 
             if not 'step' in self.simulate:
                 self.simulate['step'] = timedelta(seconds=1)
 
-    def __requeststocsv(self):
+    def _requeststocsv(self):
         requests = self.requests.copy()
         profits = []
         p = pd.Series(dtype=object)
@@ -80,7 +80,7 @@ class Loop:
         if not requests.empty:
             requests.to_csv('simulation-trades.csv', sep='\t')
 
-    def __loadsymbol(self) -> bool:
+    def _loadsymbol(self) -> bool:
         self.symbol_info = mt5.symbol_info(self.symbol)
 
         if self.symbol_info is None:
@@ -98,16 +98,16 @@ class Loop:
 
         return True
 
-    def __dates(self) -> Tuple[datetime, datetime]:
+    def _dates(self) -> Tuple[datetime, datetime]:
         now = datetime.now().replace(tzinfo=pytz.utc)
         end_date = now
 
         if self.simulate['simulation']:
-            end_date = self.__sim_startdate
-            self.__sim_startdate += self.simulate['step']
+            end_date = self._sim_startdate
+            self._sim_startdate += self.simulate['step']
 
-            if self.__sim_startdate > now:
-                self.__sim_startdate = now
+            if self._sim_startdate > now:
+                self._sim_startdate = now
 
         start_date = end_date - self.offset
 
@@ -116,8 +116,8 @@ class Loop:
 
         return start_date, end_date
 
-    def __loadticks(self) -> bool:
-        startdate, enddate = self.__dates()
+    def _loadticks(self) -> bool:
+        startdate, enddate = self._dates()
         startdateodd = startdate
         enddateodd = enddate
 
@@ -142,7 +142,7 @@ class Loop:
 
         return not self.ticks.empty
 
-    def __orderdic(self, result):
+    def _orderdic(self, result):
         result_dict = result._asdict()
 
         for field in result_dict.keys():
@@ -151,11 +151,11 @@ class Loop:
 
         return result_dict
 
-    def __appendrequest(self, request: dict[any], request_date: datetime):
+    def _appendrequest(self, request: dict[any], request_date: datetime):
         self.requests = pd.concat(
             [self.requests, pd.DataFrame([request], columns=request.keys(), index=[request_date])])
 
-    def __getprice(self, side: Side) -> float | None:
+    def _getprice(self, side: Side) -> float | None:
         if not self.simulate['simulation']:
             if side == Side.BUY:
                 return self.symbol_info.ask
@@ -175,8 +175,8 @@ class Loop:
 
         return None
 
-    def __sendorder(self, lot: float, side: Side, position: int = None) -> dict[any, any]:
-        price = self.__getprice(side)
+    def _sendorder(self, lot: float, side: Side, position: int = None) -> dict[any, any]:
+        price = self._getprice(side)
 
         if not price:
             logging.error('Price was not recovered.')
@@ -203,14 +203,14 @@ class Loop:
         if self.simulate['simulation']:
             logging.info(f'Sim order send, {request}')
 
-            self.__appendrequest(request, self.bars.iloc[-1].name)
+            self._appendrequest(request, self.bars.iloc[-1].name)
 
             return {
                 'retcode': mt5.TRADE_RETCODE_DONE
             }
 
         result = mt5.order_send(request)
-        self.__appendrequest(request, datetime.now().replace(tzinfo=pytz.utc))
+        self._appendrequest(request, datetime.now().replace(tzinfo=pytz.utc))
 
         if not result or result.retcode != mt5.TRADE_RETCODE_DONE:
             if not result:
@@ -218,15 +218,15 @@ class Loop:
                     f'Order send failed, there was no result.')
             else:
                 logging.error(
-                    f'Order send failed, {self.__orderdic(result)}')
+                    f'Order send failed, {self._orderdic(result)}')
 
-        return self.__orderdic(result)
+        return self._orderdic(result)
 
-    def __postorderwait(self):
+    def _postorderwait(self):
         if not self.simulate['simulation']:
             sleep(5)
 
-    def __simposition(self):
+    def _simposition(self):
         if self.requests.empty:
             return pd.DataFrame()
 
@@ -244,7 +244,7 @@ class Loop:
 
         return simpositions
 
-    def __dotrade(self):
+    def _dotrade(self):
         if self.bars.empty:
             return
 
@@ -262,7 +262,7 @@ class Loop:
 
         if self.simulate['simulation']:
             logging.info('Simulating positions...')
-            positions = self.__simposition()
+            positions = self._simposition()
         else:
             status, positions = self.client.get_position(self.symbol)
 
@@ -274,12 +274,12 @@ class Loop:
         if positions.empty:
             if signal == Side.BUY:
                 logging.info('Sending buy order...')
-                self.__sendorder(self.lot, Side.BUY)
-                self.__postorderwait()
+                self._sendorder(self.lot, Side.BUY)
+                self._postorderwait()
             elif signal == Side.SELL:
                 logging.info('Sending sell order...')
-                self.__sendorder(self.lot, Side.SELL)
-                self.__postorderwait()
+                self._sendorder(self.lot, Side.SELL)
+                self._postorderwait()
 
             return
 
@@ -287,12 +287,12 @@ class Loop:
 
         if position['type'] == mt5.POSITION_TYPE_SELL and signal == Side.BUY:
             logging.info('Invert sell to buy...')
-            self.__sendorder(position['volume'] * 2, Side.BUY)
-            self.__postorderwait()
+            self._sendorder(position['volume'] * 2, Side.BUY)
+            self._postorderwait()
         elif position['type'] == mt5.POSITION_TYPE_BUY and signal == Side.SELL:
             logging.info('Invert buy to sell...')
-            self.__sendorder(position['volume'] * 2, Side.SELL)
-            self.__postorderwait()
+            self._sendorder(position['volume'] * 2, Side.SELL)
+            self._postorderwait()
         else:
             logging.info('Staying in position...')
 
@@ -300,22 +300,22 @@ class Loop:
         self.client.connect()
 
         logging.info('Loading symbol...')
-        if not self.__loadsymbol():
+        if not self._loadsymbol():
             return
 
         logging.info('Loading ticks...')
-        if not self.__loadticks():
+        if not self._loadticks():
             return
 
         logging.info('Computing chart...')
         self.computebars(self)
 
         logging.info('Operating the market...')
-        self.__dotrade()
+        self._dotrade()
 
         if self.simulate['simulation']:
             logging.info('Generating trades file...')
-            self.__requeststocsv()
+            self._requeststocsv()
 
 
 def main():

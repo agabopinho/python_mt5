@@ -85,7 +85,7 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None, price='open', mav=
     
     if 'cci' in data.columns:
         addplot.append(mpf.make_addplot(
-            data[['cci']], panel=2))
+            data[['cci', 'ccil', 'ccih']], panel=2))
         
     if 'buy' in data.columns and not data[data['buy']].empty:
         addplot.append(mpf.make_addplot(np.where(

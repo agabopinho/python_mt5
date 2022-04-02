@@ -3,15 +3,19 @@ input
   Slow(144);
   Smooth(8);
 var
-  ifr_fast : Float;
-  ifr_slow : Float;
+  rsi_fast    : Float;
+  rsi_slow    : Float;
+  ema_rsifast : Float;
+  ema_rsislow : Float;
 begin
-  ifr_fast := Media(Smooth,IFR(Fast));
-  ifr_slow := Media(Smooth,IFR(Slow));
-  Plot(ifr_fast);
-  Plot2(ifr_slow);
-  if (ifr_fast[0] > ifr_slow[0]) then
+  rsi_fast := RSI(Fast,0);
+  rsi_slow := RSI(Slow,0);
+  ema_rsifast := MediaExp(Smooth,rsi_fast);
+  ema_rsislow := MediaExp(Smooth,rsi_slow);
+  Plot(ema_rsifast);
+  Plot2(ema_rsislow);
+  if (ema_rsifast[0] > ema_rsislow[0]) then
     PaintBar(ClGreen)
-  else if (ifr_fast[0] < ifr_slow[0]) then
+  else if (ema_rsifast[0] < ema_rsislow[0]) then
     PaintBar(ClRed);
 end;

@@ -3,27 +3,27 @@ import math
 import random
 from datetime import datetime, timedelta
 from time import sleep
-from typing import Tuple
+from typing import Callable, Tuple
 
 import MetaTrader5 as mt5
 import numpy as np
 import pandas as pd
 import pytz
-import ta
+from ta.momentum import rsi
+from ta.trend import cci
 
 from strategy import Side
 from strategy.mt5_client import MT5Client
 
 
 class Loop:
-    def __init__(self, client: MT5Client, symbol: str, lot: float, frame: str, window: int, offset: timedelta, simulate: dict):
+    def __init__(self, client: MT5Client, symbol: str, lot: float, offset: timedelta, simulate: dict, computebars: Callable[[any], None]):
         self.client = client
         self.symbol = symbol
         self.lot = lot
-        self.frame = frame
-        self.window = window
         self.offset = offset
         self.simulate = simulate
+        self.computebars = computebars
 
         self.symbol_info = None
         self.desviation = 30
@@ -115,24 +115,6 @@ class Loop:
             end_date += timedelta(seconds=5)
 
         return start_date, end_date
-
-    def __computebars(self):
-        chart = self.ticks.resample(self.frame)['last'].ohlc()
-        chart.dropna(inplace=True)
-
-        rsi = ta.momentum.RSIIndicator(
-            (chart['high'] + chart['low'] + chart['close']) / 3, window=5)
-
-        chart['rsi'] = rsi.rsi()
-        chart['rsi_up'] = 50
-        chart['rsi_down'] = 50
-
-        chart['buy'] = np.where(
-            (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
-        chart['sell'] = np.where(
-            (chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
-
-        self.bars = chart
 
     def __loadticks(self) -> bool:
         startdate, enddate = self.__dates()
@@ -326,7 +308,7 @@ class Loop:
             return
 
         logging.info('Computing chart...')
-        self.__computebars()
+        self.computebars(self)
 
         logging.info('Operating the market...')
         self.__dotrade()
@@ -345,15 +327,39 @@ def main():
         ]
     )
 
-    startdate = datetime(2022, 3, 28, 9, 0, tzinfo=pytz.utc)
+    def __computebars(self):
+        chart = self.ticks.resample('2min')['last'].ohlc()
+        chart.dropna(inplace=True)
+
+        chart['rsifast'] = rsi(chart['close'], window=34).ewm(
+            alpha=1 / 8, min_periods=1, adjust=False).mean()
+        chart['rsislow'] = rsi(chart['close'], window=144).ewm(
+            alpha=1 / 8, min_periods=1, adjust=False).mean()
+        chart['cci'] = cci(chart['high'], chart['low'],
+                           chart['close'], window=21)
+
+        chart['buy'] = np.where(
+            (chart['cci'] > 100) &
+            (chart['cci'].shift(1) < 100) &
+            (chart['rsifast'] > chart['rsislow']), True, False)
+        chart['sell'] = np.where(
+            (chart['cci'] < -100) &
+            (chart['cci'].shift(1) > -100) &
+            (chart['rsifast'] < chart['rsislow']), True, False)
+
+        self.bars = chart
+
+    simulate = dict(
+        simulation=True,
+        startdate=datetime(2022, 3, 28, 9, 0, tzinfo=pytz.utc),
+        step=timedelta(seconds=1))
 
     loop = Loop(MT5Client(),
                 symbol='WIN$',
                 lot=1,
-                frame='30s',
-                window=5,
-                offset=timedelta(minutes=60),
-                simulate=dict(simulation=True, startdate=startdate, step=timedelta(seconds=1)))
+                offset=timedelta(hours=5),
+                simulate=simulate,
+                computebars=__computebars)
 
     while True:
         try:

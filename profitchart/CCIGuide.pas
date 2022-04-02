@@ -1,15 +1,14 @@
 input
   Period(21);
 var
-  cci_value : Float;
+  scci : Float;
   color     : Integer;
 begin
-  cci_value := CCI(Period);
-  Plot(cci_value);
-  SetPlotColor(1,ClGreen);
-  if (cci_value[0] > 100) and (cci_value[1] < 100) then
+  scci := CCI(Period);
+  Plot(scci);
+  if (scci[0] > 100) and (scci[1] < 100) then
     color := ClGreen
-  else if (cci_value[0] < - 100) and (cci_value[1] > - 100) then
+  else if (scci[0] < - 100) and (scci[1] > - 100) then
     color := ClRed
   else 
     color := color[1];

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytz
 import ta
+from _odd.run_backtesting8 import sumprofit
 
 from backtesting import pltbalance, pltchart
 from backtesting.transaction import Transaction
@@ -134,6 +135,7 @@ def main():
             (chart['rsifast'].shift(1) < chart['rsislow'].shift(1)), True, False)
 
         simplifyorders(chart)
+        sumprofit(chart)
         
         all_chart = pd.concat([all_chart, chart])
         

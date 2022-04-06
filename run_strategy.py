@@ -328,24 +328,29 @@ def main():
     )
 
     def __computebars(self):
-        chart = self.ticks.resample('2min')['last'].ohlc()
+        chart = self.ticks.resample('5s')['last'].ohlc()
         chart.dropna(inplace=True)
 
-        chart['rsifast'] = rsi(chart['close'], window=34).ewm(
-            alpha=1 / 8, min_periods=1, adjust=False).mean()
-        chart['rsislow'] = rsi(chart['close'], window=144).ewm(
-            alpha=1 / 8, min_periods=1, adjust=False).mean()
-        chart['cci'] = cci(chart['high'], chart['low'],
-                           chart['close'], window=21)
+        range = float(2)
+        valuerange = []
+        
+        for i, row in chart.iterrows():
+            if not valuerange:
+                valuerange.append(row['open'] - row['open'] % range)
+                continue
+            if row['open'] > valuerange[-1] + range:
+                valuerange.append(row['open'] - row['open'] % range)
+            elif row['open'] < valuerange[-1] - range:
+                valuerange.append(row['open'] - row['open'] % range + range)
+            else:
+                valuerange.append(valuerange[-1])
+            
+        chart['linemiddle'] = valuerange
+        chart['lineup'] = chart['linemiddle'] + range
+        chart['linedown'] = chart['linemiddle'] - range
 
-        chart['buy'] = np.where(
-            (chart['cci'] > 100) &
-            (chart['cci'].shift(1) < 100) &
-            (chart['rsifast'] > chart['rsislow']), True, False)
-        chart['sell'] = np.where(
-            (chart['cci'] < -100) &
-            (chart['cci'].shift(1) > -100) &
-            (chart['rsifast'] < chart['rsislow']), True, False)
+        chart['sell'] = np.where(chart['open'] > chart['linemiddle'], True, False)
+        chart['buy'] = np.where(chart['open'] < chart['linemiddle'], True, False)
 
         self.bars = chart
 

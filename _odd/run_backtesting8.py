@@ -34,52 +34,54 @@ def simplifyorders(chart: pd.DataFrame):
     buy = []
     sell = []
 
-    is_buy = False
-    is_sell = False
+    side = None
 
     for _, r in chart.iterrows():
-        if r['buy'] and not is_buy:
-            is_buy = True
-            is_sell = False
+        if r['buy'] and side != 1:
+            side = 1
+
             buy.append(True)
             sell.append(False)
 
-            continue
-        elif r['sell'] and not is_sell:
-            is_sell = True
-            is_buy = False
-            sell.append(True)
+        elif r['sell'] and side != 2:
+            side = 2
+
             buy.append(False)
-
-            continue
-
-        buy.append(False)
-        sell.append(False)
+            sell.append(True)
+        else:
+            buy.append(False)
+            sell.append(False)
 
     chart['buy'] = buy
     chart['sell'] = sell
 
 
-def sumprofit(chart: pd.DataFrame):
+def sumprofit(chart: pd.DataFrame, slippage=0):
     price = 0
-    sum = 0
+    profit = []
 
     for _, r in chart.iterrows():
         if not price:
-            if r['buy'] or r['sell']:
-                price = r['open']
+            if r['buy']:
+                price = r['open'] + slippage
+
+            if r['sell']:
+                price = r['open'] - slippage
 
             continue
 
         if r['buy']:
-            sum += price - r['open']
-            price = r['open']
+            profit.append(price - r['open'] + slippage)
+            price = r['open'] + slippage
 
         if r['sell']:
-            sum += r['open'] - price
-            price = r['open']
+            profit.append(r['open'] - slippage - price)
+            price = r['open'] - slippage
 
-    logging.info('Profit {}pips'.format(sum))
+    print(profit)
+
+    logging.info(
+        f'Profit {dict(len=len(profit), sum=np.sum(profit), min=np.min(profit), max=np.max(profit))}')
 
 
 def main():
@@ -115,14 +117,17 @@ def main():
     chart = ticks.resample(frame)['last'].ohlc()
     chart.dropna(inplace=True)
 
-    ind = ta.momentum.RSIIndicator((chart['open'] + chart['close']) / 2, window=5)
+    ind = ta.momentum.RSIIndicator(
+        (chart['open'] + chart['close']) / 2, window=5)
 
     chart['rsi'] = ind.rsi()
     chart['rsi_up'] = 70
     chart['rsi_down'] = 30
 
-    chart['buy'] = np.where((chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
-    chart['sell'] = np.where((chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
+    chart['buy'] = np.where(
+        (chart['rsi'].shift(1) > chart['rsi_up'].shift(1)), True, False)
+    chart['sell'] = np.where(
+        (chart['rsi'].shift(1) < chart['rsi_down'].shift(1)), True, False)
 
     simplifyorders(chart)
     sumprofit(chart)

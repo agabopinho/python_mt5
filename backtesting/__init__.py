@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from pandas.plotting import register_matplotlib_converters
+from pyparsing import col
 
 register_matplotlib_converters()
 
@@ -67,7 +68,18 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None, price='open', mav=
     if 'psarup' in data.columns:
         columns.append('psarup')
         columns.append('psardown')
-
+        
+    if 'lineup' in data.columns:
+        columns.append('lineup')
+    if 'linedown' in data.columns:
+        columns.append('linedown')
+    if 'linemiddle' in data.columns:
+        columns.append('linemiddle')
+        
+    if 'delta' in data.columns:
+        addplot.append(mpf.make_addplot(
+            data[['delta', 'detal_ema']], panel=1))
+       
     if columns:
         addplot.append(mpf.make_addplot(data[columns]))
 
@@ -89,11 +101,11 @@ def pltchart(data: pd.DataFrame, trades: pd.DataFrame = None, price='open', mav=
         
     if 'buy' in data.columns and not data[data['buy']].empty:
         addplot.append(mpf.make_addplot(np.where(
-            data['buy'], data[price], np.nan), type='scatter', markersize=200, marker='^'))
+            data['buy'], data[price], np.nan), type='scatter', marker='^'))
 
     if 'sell' in data.columns and not data[data['sell']].empty:
         addplot.append(mpf.make_addplot(np.where(
-            data['sell'], data[price], np.nan), type='scatter', markersize=200, marker='v'))
+            data['sell'], data[price], np.nan), type='scatter', markersize=25, marker='v'))
 
     mpf.plot(data, mav=mav, type='candle', title='Data', style='classic',
              alines=dict(alines=alines, colors=['b', 'r', 'c', 'k', 'g']), addplot=addplot, show_nontrading=False)

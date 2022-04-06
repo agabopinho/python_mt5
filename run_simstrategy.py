@@ -18,10 +18,12 @@ from strategy.mt5_client import MT5Client
 
 
 class Loop:
-    def __init__(self, client: MT5Client, symbol: str, lot: float, offset: timedelta, simulate: dict, computebars: Callable[[any], None]):
+    def __init__(self, client: MT5Client, symbol: str, lot: float, take: float, stop: float, offset: timedelta, simulate: dict, computebars: Callable[[any], None]):
         self.client = client
         self.symbol = symbol
         self.lot = lot
+        self.take = take
+        self.stop = stop
         self.offset = offset
         self.simulate = simulate
         self.computebars = computebars
@@ -36,8 +38,6 @@ class Loop:
 
         self._startdate = None
         self.__current = pd.Series()
-        self.__targethigh = float(0)
-        self.__targetlow = float(0)
 
         if type(self.simulate) != dict:
             raise Exception('Invalid arg: simulate.')
@@ -73,7 +73,10 @@ class Loop:
             elif p['type'] == Side.SELL:
                 profits.append(p['price'] - r['price'])
 
-            p = r
+            if 'position' in r and r['position'] > 0:
+                p = pd.Series(dtype=object)
+            else:
+                p = r
 
         if len(profits) < len(requests):
             if p['type'] == Side.BUY:
@@ -187,7 +190,7 @@ class Loop:
 
         logging.info(f'Sim order send, {request}')
 
-        self._appendrequest(request, self.bars.iloc[-1].name)
+        self._appendrequest(request, self.ticks.iloc[-1].name)
 
         return {
             'retcode': mt5.TRADE_RETCODE_DONE
@@ -216,38 +219,53 @@ class Loop:
             return
 
         signal = None
-        newbar = False
+        isnew = False
 
         if self.__current.name != self.bars.iloc[-1].name:
-            newbar = True
+            isnew = True
 
         self.__current = self.bars.iloc[-1]
 
         logging.info(
             f'Current bar: {dict(last=self.__current.name, count=len(self.bars))}')
 
-        if newbar and len(self.bars) > 1:
-            previous = self.bars.iloc[-2]
-            self.__targethigh = previous['high'] + 5
-            self.__targetlow = previous['low'] - 5
-
-        if self.__targethigh and self.__targetlow:
-            if self.__current['close'] >= self.__targethigh:
+        if isnew:
+            if self.__current['buy']:
                 signal = Side.BUY
-            if self.__current['close'] <= self.__targetlow:
+            elif self.__current['sell']:
                 signal = Side.SELL
 
         positions = self._simposition()
+
         if len(positions) > 0:
             position = positions.iloc[-1]
-            if position['type'] == Side.SELL and signal == Side.BUY:
+            type = position['type']
+
+            if type == Side.SELL and signal == Side.BUY:
                 logging.info('Invert sell to buy...')
                 self._sendorder(position['volume'] * 2, Side.BUY)
-            elif position['type'] == Side.BUY and signal == Side.SELL:
+            elif type == Side.BUY and signal == Side.SELL:
                 logging.info('Invert buy to sell...')
                 self._sendorder(position['volume'] * 2, Side.SELL)
             else:
-                logging.info('Staying in position...')
+                price = position['price']
+                bid, ask = self._getprice()
+
+                sellprofit = price - ask
+                buyprofit = bid - price
+
+                if type == Side.SELL and (sellprofit <= self.stop or sellprofit >= self.take):
+                    logging.info('Stop loss sell...')
+                    self._sendorder(position['volume'],
+                                    Side.BUY, position['ticket'])
+                elif type == Side.BUY and (buyprofit <= self.stop or buyprofit >= self.take):
+                    logging.info('Stop loss buy...')
+                    self._sendorder(position['volume'],
+                                    Side.SELL, position['ticket'])
+                else:
+                    logging.info(
+                        f'Staying in position... {dict(type=type, price=price, bid=bid, ask=ask)}')
+
             return
 
         if signal == Side.BUY:
@@ -292,19 +310,45 @@ def startlogs():
 def main():
     startlogs()
 
-    def _computebars(self):
-        bars = self.ticks.resample('1min')['last'].ohlc()
-        bars.dropna(inplace=True)
-        self.bars = bars
+    def _computebars(loop: Loop):
+        chart = loop.ticks.resample('15s')['last'].ohlc()
+        chart.dropna(inplace=True)
+
+        range = float(100)
+        valuerange = []
+
+        for _, row in chart.iterrows():
+            if not valuerange:
+                valuerange.append(row['open'] - row['open'] % range)
+                continue
+            if row['open'] > valuerange[-1] + range:
+                valuerange.append(row['open'] - row['open'] % range)
+            elif row['open'] < valuerange[-1] - range:
+                valuerange.append(row['open'] - row['open'] % range + range)
+            else:
+                valuerange.append(valuerange[-1])
+
+        chart['linemiddle'] = valuerange
+        chart['lineup'] = chart['linemiddle'] + range
+        chart['linedown'] = chart['linemiddle'] - range
+
+        chart['sell'] = np.where(
+            chart['open'] > chart['linemiddle'], True, False)
+        chart['buy'] = np.where(
+            chart['open'] < chart['linemiddle'], True, False)
+
+        loop.bars = chart
 
     simulate = dict(
-        startdate=datetime(2022, 3, 29, 9, 0, tzinfo=pytz.utc),
-        step=timedelta(seconds=1))
+        startdate=datetime(2022, 4, 4, 9, 0, tzinfo=pytz.utc),
+        step=timedelta(milliseconds=1000))
 
     loop = Loop(MT5Client(),
                 symbol='WIN$',
                 lot=1,
-                offset=timedelta(hours=10),
+                take=500,
+                stop=-200,
+                offset=timedelta(minutes=10),
                 simulate=simulate,
                 computebars=_computebars)
 
